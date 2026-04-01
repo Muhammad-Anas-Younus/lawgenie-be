@@ -1,0 +1,25 @@
+{
+  "name": "lawgenie-be",
+  "version": "1.0.0",
+  "description": "LawGenie backend — RAG-powered legal chatbot for Pakistani family law",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "ingest": "node scripts/ingestDocuments.js",
+    "inspect": "node scripts/inspectChroma.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "chromadb": "^1.9.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
