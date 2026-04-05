@@ -2,7 +2,9 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import chatRouter from "./routes/chat.js";
+import authRouter from "./routes/auth.js";
 import { getSessionCount } from "./middleware/session.js";
+import { connectDB } from "./config/database.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,9 +18,16 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------------------------------------------------------------------
+// Database
+// ---------------------------------------------------------------------------
+
+await connectDB();
+
+// ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
+app.use("/api/auth", authRouter);
 app.use("/api/chat", chatRouter);
 
 // Health check — also exposes active session count for diagnostics
