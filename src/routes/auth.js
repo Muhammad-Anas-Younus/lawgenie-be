@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body, validationResult } from "express-validator";
 import User from "../models/User.js";
 import { generateToken } from "../utils/jwt.js";
+import { authMiddleware } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -122,6 +123,19 @@ router.post("/login", loginValidation, validate, async (req, res) => {
     console.error("[POST /api/auth/login] Error:", err);
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
+});
+
+router.get("/me", authMiddleware, (req, res) => {
+  const user = req.user;
+  return res.status(200).json({
+    id: user._id,
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
+    city: user.city,
+    role: user.role,
+    isProfileCompleted: user.isProfileCompleted,
+  });
 });
 
 export default router;
