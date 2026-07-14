@@ -1,0 +1,5 @@
+Read the [PRD](./documentation/PRD.md) to understand the scope of the project.
+For now only the chatbot functionality is built, we need to build out everything else so that it matches the PRD and also we need to make sure that all of the features listed in the [PROPOSAL](./documentation/PROPOSAL.md) are also implemented as the FYP evaludation would be heavily based off of the features we have added in the proposal.
+The frontend of this project is located at /home/anas/Documents/Code/lawgenie-frontend. when you make an api or any backend change make sure to also make the relevant changes like integrating an api etc on the frontend as well.
+
+The actual build plan lives in [TASKS/TODO.md](./TASKS/TODO.md) — it breaks the PRD down into ordered, checkable tasks covering both this repo and the frontend. When asked to build out features, work through it top to bottom: pick the first unchecked task, implement + verify it (don't just write code that looks right — actually hit the endpoint or click through the page), check it off, then move to the next. Don't skip ahead unless a task is explicitly independent of what's still unchecked above it.

@@ -1,3 +1,14 @@
 node_modules/
 .env
 chroma_data/
+automation/.env.automation
+automation/.current-task-prompt.md
+
+/src/generated/prisma
+
+uploads/payments/*
+uploads/documents/*
+uploads/credentials/*
+!uploads/payments/.gitkeep
+!uploads/documents/.gitkeep
+!uploads/credentials/.gitkeep

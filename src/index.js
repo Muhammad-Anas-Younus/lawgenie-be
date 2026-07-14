@@ -2,7 +2,16 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import chatRouter from "./routes/chat.js";
+import filesRouter from "./routes/files.js";
+import authRouter from "./routes/auth.js";
+import lawyersRouter from "./routes/lawyers.js";
+import muftisRouter from "./routes/muftis.js";
+import consultationsRouter from "./routes/consultations.js";
+import paymentsRouter from "./routes/payments.js";
+import adminRouter from "./routes/admin.js";
+import threadsRouter from "./routes/threads.js";
 import { getSessionCount } from "./middleware/session.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +29,14 @@ app.use(express.json());
 // ---------------------------------------------------------------------------
 
 app.use("/api/chat", chatRouter);
+app.use("/api/files", filesRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/lawyers", lawyersRouter);
+app.use("/api/muftis", muftisRouter);
+app.use("/api/consultations", consultationsRouter);
+app.use("/api/payments", paymentsRouter);
+app.use("/api/admin", adminRouter);
+app.use("/api/threads", threadsRouter);
 
 // Health check — also exposes active session count for diagnostics
 app.get("/health", (req, res) => {
@@ -36,10 +53,7 @@ app.use((req, res) => {
 });
 
 // Global error handler
-app.use((err, req, res, next) => {
-  console.error("[Unhandled Error]", err);
-  res.status(500).json({ error: "An unexpected error occurred." });
-});
+app.use(errorHandler);
 
 // ---------------------------------------------------------------------------
 // Start server

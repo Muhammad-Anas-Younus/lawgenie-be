@@ -1,0 +1,326 @@
+import bcrypt from "bcrypt";
+import { prisma } from "../config/prisma.js";
+import { generateOtp } from "./otpService.js";
+import { AppError } from "../middleware/errorHandler.js";
+import { getLLM } from "../config/gemini.js";
+
+const SALT_ROUNDS = 10;
+
+function toFileUrl(file) {
+  return file ? `/api/files/credentials/${file.filename}` : null;
+}
+
+// Public-facing shape for the directory/detail views. Deliberately omits
+// email/phone — "no contact until paid" (see Phase 5.2) means direct
+// contact details shouldn't be scrapeable from an unauthenticated listing.
+function toPublicLawyer(profile) {
+  return {
+    id: profile.userId,
+    name: profile.user.name,
+    bio: profile.bio,
+    city: profile.city,
+    specialization: profile.specialization,
+    experienceYears: profile.experienceYears,
+    consultationFee: profile.consultationFee,
+    feeStructure: profile.feeStructure,
+    availability: profile.availability,
+    languages: profile.languages,
+    jurisdictions: profile.jurisdictions,
+    averageRating: profile.averageRating,
+    reviewCount: profile.reviewCount,
+    verified: profile.verificationStatus === "VERIFIED",
+    createdAt: profile.createdAt,
+  };
+}
+
+const LAWYER_PROFILE_INCLUDE = { user: { select: { name: true } } };
+
+/**
+ * GET /api/lawyers — public directory. Only ever surfaces VERIFIED lawyers;
+ * an unverified profile isn't "live" yet (PRD 6.1).
+ */
+export async function listLawyers({
+  specialization,
+  city,
+  minFee,
+  maxFee,
+  minExperience,
+  maxExperience,
+  minRating,
+  availableOn,
+  search,
+  page,
+  limit,
+}) {
+  const where = {
+    verificationStatus: "VERIFIED",
+    ...(specialization ? { specialization: { has: specialization } } : {}),
+    ...(city ? { city: { equals: city, mode: "insensitive" } } : {}),
+    ...(minRating !== undefined ? { averageRating: { gte: minRating } } : {}),
+    ...(availableOn ? { availability: { path: [availableOn], equals: true } } : {}),
+    ...(minFee !== undefined || maxFee !== undefined
+      ? {
+          consultationFee: {
+            ...(minFee !== undefined ? { gte: minFee } : {}),
+            ...(maxFee !== undefined ? { lte: maxFee } : {}),
+          },
+        }
+      : {}),
+    ...(minExperience !== undefined || maxExperience !== undefined
+      ? {
+          experienceYears: {
+            ...(minExperience !== undefined ? { gte: minExperience } : {}),
+            ...(maxExperience !== undefined ? { lte: maxExperience } : {}),
+          },
+        }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { bio: { contains: search, mode: "insensitive" } },
+            { specialization: { has: search } },
+            { user: { name: { contains: search, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [profiles, total] = await Promise.all([
+    prisma.lawyerProfile.findMany({
+      where,
+      include: LAWYER_PROFILE_INCLUDE,
+      orderBy: [{ averageRating: "desc" }, { createdAt: "desc" }],
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.lawyerProfile.count({ where }),
+  ]);
+
+  return {
+    lawyers: profiles.map(toPublicLawyer),
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+/**
+ * GET /api/lawyers/:id — public detail. 404s (rather than 403) for a
+ * not-yet-verified profile so unverified accounts aren't enumerable.
+ */
+export async function getLawyerById(userId) {
+  const profile = await prisma.lawyerProfile.findUnique({
+    where: { userId },
+    include: LAWYER_PROFILE_INCLUDE,
+  });
+
+  if (!profile || profile.verificationStatus !== "VERIFIED") {
+    throw new AppError(404, "Lawyer not found.");
+  }
+
+  return toPublicLawyer(profile);
+}
+
+/**
+ * GET /api/lawyers/me — the authenticated lawyer's own profile, including
+ * fields hidden from the public view (verification status/reason).
+ */
+export async function getOwnProfile(userId) {
+  const profile = await prisma.lawyerProfile.findUnique({
+    where: { userId },
+    include: LAWYER_PROFILE_INCLUDE,
+  });
+
+  if (!profile) {
+    throw new AppError(404, "Lawyer profile not found.");
+  }
+
+  return {
+    ...toPublicLawyer(profile),
+    verificationStatus: profile.verificationStatus,
+    verificationReason: profile.verificationReason,
+  };
+}
+
+/**
+ * PATCH /api/lawyers/me — a lawyer editing their own profile. Credential
+ * files and verification status are not editable here (Phase 4 territory).
+ */
+export async function updateOwnProfile(userId, data) {
+  const existing = await prisma.lawyerProfile.findUnique({ where: { userId } });
+  if (!existing) {
+    throw new AppError(404, "Lawyer profile not found.");
+  }
+
+  const profile = await prisma.lawyerProfile.update({
+    where: { userId },
+    data,
+    include: LAWYER_PROFILE_INCLUDE,
+  });
+
+  return {
+    ...toPublicLawyer(profile),
+    verificationStatus: profile.verificationStatus,
+    verificationReason: profile.verificationReason,
+  };
+}
+
+/**
+ * GET /api/lawyers/recommendations — AI-assisted matching (PRD 6.3) over
+ * the currently verified lawyer pool. Falls back to a simple specialization
+ * match, ranked by rating/experience, if Gemini is unavailable or returns
+ * something unusable — the endpoint should never hard-fail just because the
+ * LLM call did.
+ */
+export async function getRecommendations({ caseType, budget, location }) {
+  const candidates = await prisma.lawyerProfile.findMany({
+    where: { verificationStatus: "VERIFIED" },
+    include: LAWYER_PROFILE_INCLUDE,
+    take: 50,
+  });
+
+  if (candidates.length === 0) {
+    return { recommendations: [] };
+  }
+
+  const byId = new Map(candidates.map((c) => [c.userId, c]));
+
+  const candidateSummaries = candidates.map((c) => ({
+    id: c.userId,
+    specialization: c.specialization,
+    city: c.city,
+    experienceYears: c.experienceYears,
+    consultationFee: c.consultationFee,
+    languages: c.languages,
+    averageRating: c.averageRating,
+  }));
+
+  function fallback() {
+    const caseTypeLower = caseType.toLowerCase();
+    const ranked = candidates
+      .filter(
+        (c) =>
+          c.specialization.some((s) => s.toLowerCase().includes(caseTypeLower) || caseTypeLower.includes(s.toLowerCase())) ||
+          (location && c.city && c.city.toLowerCase() === location.toLowerCase())
+      )
+      .sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0) || (b.experienceYears ?? 0) - (a.experienceYears ?? 0));
+
+    const pool = ranked.length > 0 ? ranked : candidates;
+    return {
+      recommendations: pool.slice(0, 5).map((c) => ({
+        ...toPublicLawyer(c),
+        matchReason: "Matched by specialization/location (AI ranking unavailable).",
+      })),
+    };
+  }
+
+  try {
+    const model = getLLM();
+    const prompt = `You are matching a client to lawyers on LawGenie, a Pakistani family law platform.
+
+Client's case type: "${caseType}"
+${budget !== undefined ? `Client's budget (PKR, consultation fee): ${budget}` : ""}
+${location ? `Client's preferred location: "${location}"` : ""}
+
+Candidate lawyers (JSON):
+${JSON.stringify(candidateSummaries)}
+
+Pick up to 5 of the best-matching lawyers for this case, ranked best first, considering specialization relevance, budget fit, location, and rating.
+Respond with ONLY a JSON array, no markdown, no explanation, in this exact shape:
+[{"id": "<lawyer id>", "reason": "<one short sentence>"}]`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+    const parsed = JSON.parse(text);
+
+    if (!Array.isArray(parsed)) {
+      return fallback();
+    }
+
+    const recommendations = parsed
+      .filter((entry) => byId.has(entry.id))
+      .map((entry) => ({
+        ...toPublicLawyer(byId.get(entry.id)),
+        matchReason: entry.reason ?? null,
+      }));
+
+    return recommendations.length > 0 ? { recommendations } : fallback();
+  } catch {
+    return fallback();
+  }
+}
+
+/**
+ * Registers a lawyer: creates the User + a PENDING_VERIFICATION
+ * LawyerProfile in one transaction, then issues an OTP for contact
+ * verification. Credential review (admin approving the uploaded license/
+ * CNIC) is a separate, later step — see Phase 4.
+ */
+export async function registerLawyer(
+  {
+    name,
+    email,
+    phone,
+    password,
+    specialization,
+    experienceYears,
+    bio,
+    city,
+    consultationFee,
+    languages,
+    jurisdictions,
+  },
+  files
+) {
+  const existing = await prisma.user.findFirst({
+    where: { OR: [email ? { email } : undefined, phone ? { phone } : undefined].filter(Boolean) },
+  });
+  if (existing) {
+    throw new AppError(409, "An account with this email or phone already exists.");
+  }
+
+  const barCouncilLicense = files?.barCouncilLicense?.[0];
+  const cnic = files?.cnic?.[0];
+  const educationCredentials = files?.educationCredentials?.[0];
+
+  if (!barCouncilLicense || !cnic) {
+    throw new AppError(400, "Bar Council license and CNIC files are required.");
+  }
+
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: { name, email, phone, passwordHash, role: "LAWYER" },
+    });
+
+    await tx.lawyerProfile.create({
+      data: {
+        userId: created.id,
+        barCouncilLicenseUrl: toFileUrl(barCouncilLicense),
+        cnicUrl: toFileUrl(cnic),
+        educationCredentialsUrl: toFileUrl(educationCredentials),
+        specialization: specialization ?? [],
+        experienceYears: experienceYears ?? null,
+        bio: bio ?? null,
+        city: city ?? null,
+        consultationFee: consultationFee ?? null,
+        languages: languages ?? [],
+        jurisdictions: jurisdictions ?? [],
+      },
+    });
+
+    return created;
+  });
+
+  const identifier = email || phone;
+  const otp = generateOtp(identifier);
+
+  return {
+    message: "Registration submitted. Verify your OTP, then await admin credential review.",
+    userId: user.id,
+    identifier,
+    otp: process.env.NODE_ENV === "production" ? undefined : otp,
+  };
+}

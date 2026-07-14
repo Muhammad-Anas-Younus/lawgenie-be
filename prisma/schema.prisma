@@ -1,0 +1,195 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CLIENT
+  LAWYER
+  MUFTI
+  ADMIN
+}
+
+// Lawyers and Muftis start PENDING_VERIFICATION on registration and only
+// become publicly visible / usable once an admin verifies their credentials.
+enum VerificationStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String?  @unique
+  phone        String?  @unique
+  passwordHash String
+  role         Role
+  // Contact (OTP) verification — distinct from LawyerProfile/MuftiProfile's
+  // credential VerificationStatus, which admin review gates separately.
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  lawyerProfile LawyerProfile?
+  muftiProfile  MuftiProfile?
+  adminProfile  AdminProfile?
+
+  consultationsAsClient Consultation[] @relation("ClientConsultations")
+  consultationsAsLawyer Consultation[] @relation("LawyerConsultations")
+  reviewedPayments      Payment[]      @relation("PaymentReviewer")
+  sentMessages          Message[]      @relation("MessageSender")
+}
+
+model LawyerProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Credential documents submitted at registration, verified by an admin.
+  barCouncilLicenseUrl    String
+  cnicUrl                 String
+  educationCredentialsUrl String?
+
+  bio             String?
+  city            String?
+  specialization  String[]
+  experienceYears Int?
+  // Base consultation fee (PKR) — its own column (rather than only inside
+  // feeStructure) so the directory can filter/sort on it directly.
+  consultationFee Int?
+  // Retainer, milestone, hourly rate — shape varies enough per lawyer that
+  // a fixed relational schema isn't worth it for these.
+  feeStructure    Json?
+  availability    Json?
+  languages       String[]
+  jurisdictions   String[]
+
+  // Denormalized from Review once that model lands (Phase 9) so directory
+  // filtering/sorting by rating doesn't require aggregating on every request.
+  averageRating Float?
+  reviewCount   Int    @default(0)
+
+  verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
+  verificationReason String?
+
+  createdAt DateTime @default(now())
+}
+
+model MuftiProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  credentialsUrl String
+
+  bio            String?
+  specialization String[]
+  languages      String[]
+
+  verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
+  verificationReason String?
+
+  createdAt DateTime @default(now())
+}
+
+model AdminProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// A consultation is a single paid video meeting between a client and a
+// lawyer. No in-house video infra — once payment is admin-approved
+// (Phase 4), a meeting link is generated and stored on `meetingLink`.
+enum ConsultationStatus {
+  PENDING_PAYMENT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model Consultation {
+  id       String @id @default(uuid())
+  clientId String
+  client   User   @relation("ClientConsultations", fields: [clientId], references: [id])
+  lawyerId String
+  lawyer   User   @relation("LawyerConsultations", fields: [lawyerId], references: [id])
+
+  // Snapshotted from the lawyer's consultationFee at booking time, so a
+  // later fee change doesn't retroactively alter an existing booking.
+  fee         Int
+  scheduledAt DateTime
+  status      ConsultationStatus @default(PENDING_PAYMENT)
+  // Set once an admin approves the payment (Phase 4) — see model comment above.
+  meetingLink String?
+
+  createdAt DateTime @default(now())
+
+  payments Payment[]
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Polymorphic proof-of-payment record: exactly one of consultationId/
+// caseId/milestoneId/muftiQueryId is set (enforced by a DB check
+// constraint — see the migration). caseId/milestoneId/muftiQueryId stay
+// plain nullable columns, not relations, until those models exist
+// (Phases 6/7/8).
+model Payment {
+  id             String        @id @default(uuid())
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  caseId         String?
+  milestoneId    String?
+  muftiQueryId   String?
+
+  screenshotUrl String
+  amount        Int
+  status        PaymentStatus @default(PENDING)
+
+  reviewedById String?
+  reviewedBy   User?     @relation("PaymentReviewer", fields: [reviewedById], references: [id])
+  reason       String?
+  reviewedAt   DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+// Threads are scoped per consultation or per case, not one continuous
+// inbox per client-lawyer pair. threadId is a plain column (not a relation)
+// since it points at either Consultation or, once Phase 7 lands, Case —
+// ownership/"no contact until paid" checks are enforced in messageService.
+enum ThreadType {
+  CONSULTATION
+  CASE
+}
+
+model Message {
+  id         String     @id @default(uuid())
+  threadType ThreadType
+  threadId   String
+
+  senderId String
+  sender   User   @relation("MessageSender", fields: [senderId], references: [id])
+
+  body          String
+  attachmentUrl String?
+
+  createdAt DateTime @default(now())
+
+  @@index([threadType, threadId])
+}

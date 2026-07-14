@@ -40,7 +40,7 @@ Pakistani women seeking guidance, representation, and resolution in
 family and marriage law matters. The platform bridges the critical gap
 between legally underserved women and qualified legal professionals by
 combining AI-powered guidance, verified lawyer matching, integrated
-Islamic scholarship, and dedicated human case management into a single,
+Islamic scholarship, and admin-verified payments into a single,
 secure, end-to-end solution.
 
 +-----------------------------------------------------------------------+
@@ -79,7 +79,7 @@ fragmented and difficult legal landscape:
 
 Pakistan\'s legal-tech sector is nascent, and no platform currently
 offers the combination of AI legal chatbot, verified lawyer directory,
-Mufti/scholar consultations, and active case agents. LawGenie addresses
+and Mufti/scholar consultations in one place. LawGenie addresses
 a large underserved market with measurable, tangible impact on women\'s
 legal empowerment.
 
@@ -99,8 +99,8 @@ legal empowerment.
 - Maintain the highest standards of data privacy and confidentiality
   for vulnerable users
 
-- Ensure platform quality through human oversight via dedicated case
-  agents
+- Ensure platform quality through human oversight via admin review of
+  payments and disputes
 
 **3.2 Success Metrics**
 
@@ -124,8 +124,6 @@ Client Satisfaction Rate 80%+ Ongoing
 Lawyer Response Time \< 24 hours average Ongoing
 
 Mufti Response Time 24--48 hours average Ongoing
-
-Case Agent Response Time \< 12 hours average Ongoing
 
 Consultation-to-Case 70%+ Ongoing
 Conversion
@@ -159,22 +157,15 @@ subject to rating and review.
 
 Verified Islamic scholars with credentials in Sharia and family law
 jurisprudence. They provide binding Islamic guidance (fatwas) to lawyers
-managing complex cases and to clients with religious questions. They are
-compensated per consultation and contribute to the platform\'s Islamic
-knowledge base.
+managing complex cases. They are compensated per consultation and
+contribute to the platform\'s Islamic knowledge base.
 
-**4.4 Case Agents**
+**4.4 Platform Administrators**
 
-Platform-employed case managers assigned automatically when a case is
-created. They serve as a quality assurance layer --- monitoring case
-progress, mediating disputes, sending reminders, and escalating issues.
-Each agent manages 15--20 concurrent cases.
-
-**4.5 Platform Administrators**
-
-Internal Anthropic/LawGenie staff responsible for verifying professional
-credentials, managing user accounts, moderating content, processing
-escalated disputes, and overseeing platform analytics and performance.
+Internal LawGenie staff responsible for verifying professional
+credentials, managing user accounts, moderating content, manually
+reviewing and approving payment proofs, resolving disputes, and
+overseeing platform analytics and performance.
 
 **5. User Journeys**
 
@@ -186,44 +177,46 @@ escalated disputes, and overseeing platform analytics and performance.
 
 ---
 
-1 Client discovers the OTP verification, Tier 1 access granted
-platform and signs up
+1 Client browses the platform No account required --- chatbot and lawyer
+anonymously directory are open access
 
-2 Client interacts with AI Chatbot assesses case, answers
-chatbot for initial questions in English/Urdu
-guidance
+2 Client interacts with AI Chatbot assesses case, answers questions in
+chatbot English/Urdu, no login required
 
-3 Client upgrades to Tier 2 CNIC verification + refundable security
-deposit (PKR 500--1000)
+3 Client browses and contacts Lawyer profiles, comparisons, reviews, AI
+lawyers recommendations --- still no login required
 
-4 Client browses and contacts Lawyer profiles, comparisons, reviews,
-lawyers AI recommendations
+4 Client decides to book a Account creation required: email or phone +
+consultation OTP verification
 
-5 Client books consultation Tier 3 access unlocked; escrow payment
-and pays fee processed
+5 Client books consultation Client uploads a payment screenshot; status
+and pays fee set to \"pending admin review\"
 
-6 Lawyer sends case proposal Client reviews and accepts; pays
-and fee structure retainer
+6 Admin reviews payment proof Admin approves or rejects; consultation
+marked paid once approved
 
-7 Case is formally created Case Agent automatically assigned; both
-parties notified
+7 Lawyer sends case proposal Client reviews and accepts; uploads payment
+and fee structure screenshot for the retainer
 
-8 Case progresses through Documents shared, court dates tracked,
-milestones agent monitors
+8 Admin reviews retainer Once approved, case is formally created and
+payment proof both parties notified
 
-9 Lawyer requests Islamic Mufti consulted, guidance logged in
-guidance if needed case file
+9 Case progresses through Documents shared, court dates tracked
+milestones
 
-10 Milestones completed; Escrow system releases funds upon
-payments released milestone verification
+10 Lawyer requests Islamic Mufti consulted, guidance logged in case
+guidance if needed file
 
-11 Issues arise mid-case Agent mediates; escalation process
-invoked if needed
+11 Milestone payment due Client uploads payment screenshot; admin
+reviews and marks milestone as paid
 
-12 Case concludes Final payment, formal case closure
+12 Issues arise mid-case Client or lawyer raises a dispute directly
+with admin; admin mediates
 
-13 Reviews submitted Client rates lawyer and agent; lawyer
-rates client
+13 Case concludes Final payment reviewed and approved by admin;
+formal case closure
+
+14 Reviews submitted Client rates lawyer; lawyer rates client
 
 ---
 
@@ -231,24 +224,12 @@ rates client
 
 **6.1 Registration & Verification System**
 
-**Client Verification Tiers**
+**Client Registration**
 
----
-
-**Tier** **Requirements** **Access Level** **Fee**
-
----
-
-Tier 1 --- Email/phone + OTP AI chatbot access Free
-Basic verification only
-
-Tier 2 --- CNIC verification + Can contact and PKR 500--1000
-Verified security deposit message lawyers (refundable)
-
-Tier 3 --- Paid consultation fee Full platform access PKR 500--3,000
-Paying per consultation
-
----
+- No account required to use the chatbot or browse the lawyer directory
+- Account required only when booking a consultation: register via
+  email or phone + OTP verification
+- No tiered access levels, no CNIC verification, no security deposit
 
 **Lawyer Registration**
 
@@ -292,10 +273,9 @@ engaged.
 
 - Provide estimated timelines and cost ranges
 
-- Handle basic Islamic jurisprudence questions; route complex queries
-  to Muftis
-
-- Access a pre-approved fatwa knowledge base for common scenarios
+- Handle Islamic jurisprudence questions directly using a pre-approved
+  fatwa knowledge base; no escalation path to a Mufti for clients ---
+  Mufti consultation is a lawyer-only feature (see 6.5)
 
 **6.3 Lawyer Discovery & Matching**
 
@@ -333,20 +313,18 @@ engaged.
 - Secure, encrypted in-platform messaging (no external contact until
   consultation paid)
 
+- Each consultation and each case has its own separate message thread
+  --- not one continuous inbox per client-lawyer pair
+
 - File and document sharing within messages
 
-- Email and SMS notifications for new messages
+- Email and in-app notifications for new messages
 
-**Three-Way Communication (Client --- Agent --- Lawyer)**
+**6.5 Islamic Guidance System (Lawyer --- Mufti Only)**
 
-- Case Agent has read access to all case messages
-
-- Agent can send reminders to either party
-
-- Agent facilitates communication and clarifies legal terminology for
-  clients
-
-**6.5 Islamic Guidance System**
+Mufti consultation is exclusive to lawyers. Clients have no direct
+access to Muftis --- their only source of Islamic guidance is the AI
+chatbot's fatwa knowledge base (see 6.2).
 
 **For Lawyers --- Mufti Consultation**
 
@@ -364,19 +342,16 @@ Critical 4 hours 1,000
 
 ---
 
-- Lawyer submits query with anonymized case details
+- Lawyer submits query with anonymized case details and uploads a
+  payment screenshot for the applicable fee
+
+- Query only enters the Mufti's queue once admin approves the payment;
+  the Mufti never sees a query with an unapproved payment
 
 - Receives Sharia compliance guidance and formal Islamic rulings
   (fatwas)
 
 - All Mufti consultations are logged in the case file
-
-**For Clients --- Islamic Q&A**
-
-- Basic Islamic questions answered by AI chatbot via pre-approved
-  fatwa database
-
-- Complex queries routed to verified Mufti (PKR 200--500)
 
 **Mufti Dashboard**
 
@@ -392,12 +367,27 @@ Critical 4 hours 1,000
 
 **Case Initiation**
 
+- A lawyer may only send a case proposal to a client following a prior
+  paid (admin-approved) consultation between them --- there is no
+  cold-proposal path
+
 - Client contacts lawyer; lawyer sends formal case proposal and fee
   structure
 
-- Client accepts and pays retainer; Case Agent automatically assigned
+- Client accepts and uploads a payment screenshot for the retainer
 
-- Case status set to Active with both parties notified
+- Case status set to Active once admin approves the payment; both
+  parties notified
+
+**Case Load Limits**
+
+- A client may have only one Active case at a time; new case proposals
+  cannot be accepted (nor a new consultation converted into a case)
+  while an existing case is Active. The limit lifts once the case is
+  closed
+
+- A lawyer has no such limit and manages multiple concurrent cases
+  across different clients
 
 **Active Case Features (All Parties)**
 
@@ -413,7 +403,7 @@ Critical 4 hours 1,000
 
 - Full message history
 
-- Always-visible \'Contact Your Agent\' button
+- Always-visible \'Report an Issue\' button routing to admin support
 
 **Special Trackers**
 
@@ -425,57 +415,43 @@ Critical 4 hours 1,000
 
 **Lawyer-Specific Features**
 
+- Case update controls: the lawyer adds/edits hearing dates, uploads
+  documents, and updates milestone/progress status from their case
+  view; all updates are immediately reflected in the client\'s \"My
+  Case\" section
+
 - \'Request Islamic Guidance\' button in case dashboard
 
 - Private case notes and legal strategy planning area
 
-**6.7 Case Agent System**
+**Admin Visibility**
 
-**Responsibilities**
+- Admin can open any case and view its full details: proposal, payment
+  status, milestones, hearing dates, documents, and message history
+  (read-only unless handling a dispute)
 
-- Progress Monitoring: Track milestones, flag stalled or at-risk
-  cases, run weekly check-ins
+**6.7 Payment System**
 
-- Communication Facilitation: View all messages, send reminders,
-  schedule meetings, clarify legal terminology
+All payments happen off-platform (bank transfer, JazzCash, EasyPaisa,
+cash, etc.) directly between client and lawyer/Mufti. LawGenie does not
+integrate a payment gateway and does not hold funds in escrow --- it
+only tracks and verifies that a payment occurred.
 
-- Dispute Mediation: Handle complaints from either party through
-  structured escalation
+**Payment Verification Flow**
 
-- Quality Assurance: Review documentation, collect milestone feedback,
-  identify problematic users early
+- Client or lawyer makes the payment off-platform and uploads a
+  screenshot of the payment as proof
 
-**Escalation Process**
+- Payment status is set to \"Pending Review\"
 
----
+- Admin manually reviews the screenshot and approves or rejects it
 
-**Level** **Handler** **Trigger**
+- Once approved, the payment is marked \"Paid\" and the relevant action
+  unlocks (consultation confirmed, case created, milestone marked
+  complete, etc.)
 
----
-
-Level 1 Assigned Case Agent Initial complaint or issue
-raised
-
-Level 2 Senior Case Agent Agent unable to resolve within
-48 hours
-
-Level 3 Admin Team Senior agent escalation or
-policy violation
-
----
-
-**Agent Dashboard**
-
-- List of all assigned cases (15--20 per agent) with status
-  indicators: on-track, at-risk, stalled
-
-- Consolidated view of upcoming deadlines across all cases
-
-- Issue tracking and communication tools
-
-- Personal performance metrics
-
-**6.8 Payment System**
+- Rejected payments notify the uploader with a reason and allow
+  re-upload
 
 **Fee Structure**
 
@@ -490,41 +466,28 @@ Lawyer Consultation 500 -- 3,000 Paid by client before
 
 Case Retainer Variable Upfront fee per case proposal
 
-Milestone Payments Variable Released from escrow upon
-completion
-
-Mufti Consultation 200 -- 500 For complex Islamic guidance
-(client) queries
+Milestone Payments Variable Marked paid once admin
+approves the screenshot
 
 Mufti Consultation 300 -- 1,000 Standard / Urgent / Critical
-(lawyer) tiers
-
-Client Security 500 -- 1,000 Refundable upon good standing
-Deposit (Tier 2)
+(lawyer only) tiers
 
 ---
 
-**Platform Commission**
-
-- 10--15% commission on all lawyer transactions
-
-- 10% commission on Mufti consultations
-
 **Payment Features**
 
-- Integration with JazzCash, EasyPaisa, bank transfers, credit/debit
-  cards
+- Screenshot upload for every payment type above
 
-- Escrow system: payments held until milestone completion, then
-  auto-released
+- Admin review queue for pending payment proofs
 
-- Invoice generation and payment history tracking
+- Receipt/history generation and payment history tracking
 
-- Refund processing with agent/admin approval
+- Manual refund or rejection handling by admin
 
-- Dispute resolution mechanism for contested payments
+- Dispute resolution mechanism for contested payments, handled
+  directly by admin
 
-**6.9 Review & Rating System**
+**6.8 Review & Rating System**
 
 ---
 
@@ -532,11 +495,10 @@ Deposit (Tier 2)
 
 ---
 
-Clients Lawyers (after consultation or case close); Case
-Agents (after case close)
+Clients Lawyers (after consultation or case close)
 
 Lawyers Clients (after case close); Muftis (after
-guidance received); Case Agents
+guidance received)
 
 All parties Ratings displayed publicly on profiles with
 response time and success metrics
@@ -547,7 +509,7 @@ Rating categories: overall star rating (1--5), written review, plus
 specific scores for Communication, Expertise, Value for Money,
 Professionalism, and Responsiveness.
 
-**6.10 Document Management**
+**6.9 Document Management**
 
 - Secure cloud storage for all case documents
 
@@ -558,9 +520,7 @@ Professionalism, and Responsiveness.
 
 - Download and print capabilities
 
-- File sharing between client, lawyer, and agent
-
-- OCR support for scanned documents (text searchable)
+- File sharing between client and lawyer
 
 **7. Non-Functional Requirements**
 
@@ -577,13 +537,12 @@ Professionalism, and Responsiveness.
 - Role-based access control (RBAC) --- strict data separation between
   roles
 
-- Optional two-factor authentication (2FA) for all users
-
 - Session management with automatic timeout
 
 - Audit logs for all sensitive operations
 
-- Anonymous browsing permitted until Tier 2 verification
+- Anonymous browsing permitted for the chatbot and lawyer directory;
+  an account is required only to book a consultation
 
 - Data retention policies compliant with Pakistani data protection
   standards
@@ -601,10 +560,8 @@ Professionalism, and Responsiveness.
 
 **8.1 Client-Side Abuse Prevention**
 
-- Multi-tier verification with mandatory CNIC check before lawyer
-  contact
-
-- Refundable security deposit as commitment signal
+- Account required only at consultation booking (email/phone + OTP),
+  not for browsing or chatbot use
 
 - Rate limiting on lawyer contact requests
 
@@ -612,7 +569,7 @@ Professionalism, and Responsiveness.
 
 - AI pre-screening of case details for completeness and legitimacy
 
-- Continuous agent monitoring throughout case lifecycle
+- Admin monitoring of flagged cases and messages
 
 - Feedback system to flag and escalate problematic client behavior
 
@@ -623,13 +580,13 @@ Professionalism, and Responsiveness.
 - Credential verification and Bar Council license validation before
   approval
 
-- All case communication visible to assigned Case Agent
+- Case communication auditable by admin when flagged or disputed
 
 - Client review and rating system as public accountability mechanism
 
 - Response time tracking with performance benchmarks
 
-- Regular quality assurance reviews by Case Agent
+- Regular quality assurance reviews by admin
 
 - Suspension policy for sustained poor performance or misconduct
 
@@ -639,13 +596,23 @@ Professionalism, and Responsiveness.
 
 - Verify and approve lawyer and Mufti registration applications
 
-- Manage and update client accounts and tier statuses
-
-- Assign, reassign, and manage Case Agent workloads
+- Manage client accounts
 
 - Suspend or permanently delete accounts with appropriate audit trail
 
-**9.2 Content Moderation**
+**9.2 Payment Verification**
+
+- Review queue of pending payment screenshots (consultations,
+  retainers, milestones, Mufti fees)
+
+- Approve or reject each payment with a reason
+
+- Mark the corresponding consultation/case/milestone as paid once
+  approved
+
+- Maintain an audit trail of all payment decisions
+
+**9.3 Content Moderation**
 
 - Review flagged messages from any conversation
 
@@ -653,23 +620,25 @@ Professionalism, and Responsiveness.
 
 - Approve and curate Islamic guidance content for knowledge base
 
-**9.3 Dispute Resolution**
+**9.4 Dispute Resolution**
 
-- Handle Level 3 escalated issues from senior agents
+- Handle disputes raised directly by clients or lawyers on a case
 
-- Process refund requests beyond agent authority
+- Review and approve/reject uploaded payment proofs
+
+- Process refund or re-payment requests
 
 - Impose suspensions and financial penalties as appropriate
 
-**9.4 Analytics Dashboard**
+**9.5 Analytics Dashboard**
 
-- User registration trends by role and tier
+- User registration trends by role
 
 - Case volume statistics: active, completed, stalled
 
-- Revenue tracking and commission summaries
+- Payment volume and approval statistics
 
-- Performance reports for Lawyers, Muftis, and Case Agents
+- Performance reports for Lawyers and Muftis
 
 - Platform usage statistics and most-requested services
 
@@ -692,17 +661,15 @@ Pakistani Family Law law, custody, maintenance, property
 Integrated Islamic Verified Muftis accessible to both lawyers and
 Guidance clients within the same platform
 
-Dedicated Case Agents Human quality-control layer ensuring cases
-progress and disputes are resolved
+Frictionless Access Chatbot and lawyer directory usable with no
+account required; an account is only needed to
+book a consultation
 
-Multi-Tier Prevents time-wasters and fraudulent actors on
-Verification both client and lawyer sides
+Admin-Verified Every payment is manually reviewed and approved
+Payments by an admin before it counts as paid
 
-Complete Payment & Milestone-based payments protect both clients
-Escrow System and lawyers
-
-Everything On-Platform No external communication required --- maintains
-auditability and security
+Everything On-Platform Case documents, messages, and proposals stay
+on-platform for auditability and security
 
 Women\'s Rights Focus Specialized focus on Pakistani women\'s legal
 rights in family law matters
@@ -740,9 +707,6 @@ Pakistani family law statute
 
 CNIC Computerized National Identity Card --- Pakistan\'s
 national identity document
-
-Escrow Funds held by a neutral party until contractual
-conditions are met
 
 PKR Pakistani Rupee --- currency of Pakistan
 
