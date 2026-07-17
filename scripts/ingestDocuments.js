@@ -21,14 +21,14 @@
  *  Each run will embed up to ~900 new chunks (leaving headroom for the API).
  */
 
-import 'dotenv/config';
-import { loadAllDocuments } from '../src/services/documentLoader.js';
-import { embedBatch } from '../src/services/embeddingService.js';
+import "dotenv/config";
+import { loadAllDocuments } from "../src/services/documentLoader.js";
+import { embedBatch } from "../src/services/embeddingService.js";
 import {
   getOrCreateCollection,
   getStoredIds,
   upsertSingleChunk,
-} from '../src/services/vectorStore.js';
+} from "../src/services/vectorStore.js";
 
 // Safety cap: stop after embedding this many NEW chunks per run to stay
 // within the 1K RPD (requests per day) limit. Set to 0 to disable.
@@ -36,26 +36,28 @@ const MAX_NEW_CHUNKS_PER_RUN = 900;
 
 async function main() {
   const startTime = Date.now();
-  console.log('=================================================');
-  console.log('  LawGenie — Document Ingestion');
-  console.log('=================================================\n');
+  console.log("=================================================");
+  console.log("  LawGenie — Document Ingestion");
+  console.log("=================================================\n");
 
   // -----------------------------------------------------------------------
   // Step 1: Get or create ChromaDB collection (no wipe — preserve progress)
   // -----------------------------------------------------------------------
-  console.log('[ Step 1 ] Connecting to ChromaDB collection...');
+  console.log("[ Step 1 ] Connecting to ChromaDB collection...");
   const collection = await getOrCreateCollection();
-  console.log('  Done.\n');
+  console.log("  Done.\n");
 
   // -----------------------------------------------------------------------
   // Step 2: Load and chunk all documents
   // -----------------------------------------------------------------------
-  console.log('[ Step 2 ] Loading and chunking documents...');
+  console.log("[ Step 2 ] Loading and chunking documents...");
   const chunks = await loadAllDocuments();
   console.log(`\n  Total chunks produced: ${chunks.length}\n`);
 
   if (chunks.length === 0) {
-    console.error('  No chunks found. Make sure the documents/ directory contains PDFs or .md files.');
+    console.error(
+      "  No chunks found. Make sure the documents/ directory contains PDFs or .md files.",
+    );
     process.exit(1);
   }
 
@@ -64,7 +66,7 @@ async function main() {
     const src = chunk.metadata.source;
     countsBySource[src] = (countsBySource[src] || 0) + 1;
   }
-  console.log('  Chunks per document:');
+  console.log("  Chunks per document:");
   for (const [source, count] of Object.entries(countsBySource)) {
     console.log(`    ${source}: ${count} chunks`);
   }
@@ -73,7 +75,7 @@ async function main() {
   // -----------------------------------------------------------------------
   // Step 3: Determine which chunks are already stored (resume support)
   // -----------------------------------------------------------------------
-  console.log('[ Step 3 ] Checking for previously stored chunks...');
+  console.log("[ Step 3 ] Checking for previously stored chunks...");
   const storedIds = await getStoredIds();
   const pendingChunks = chunks.filter((c) => !storedIds.has(c.id));
 
@@ -81,8 +83,10 @@ async function main() {
   console.log(`  Pending:        ${pendingChunks.length} chunks\n`);
 
   if (pendingChunks.length === 0) {
-    console.log('  All chunks are already stored. Nothing to do.');
-    console.log('  If you want to re-ingest from scratch, clear the ChromaDB collection first.');
+    console.log("  All chunks are already stored. Nothing to do.");
+    console.log(
+      "  If you want to re-ingest from scratch, clear the ChromaDB collection first.",
+    );
     process.exit(0);
   }
 
@@ -92,17 +96,22 @@ async function main() {
       ? pendingChunks.slice(0, MAX_NEW_CHUNKS_PER_RUN)
       : pendingChunks;
 
-  if (MAX_NEW_CHUNKS_PER_RUN > 0 && chunksThisRun.length < pendingChunks.length) {
+  if (
+    MAX_NEW_CHUNKS_PER_RUN > 0 &&
+    chunksThisRun.length < pendingChunks.length
+  ) {
     console.log(
-      `  RPD cap active: embedding ${chunksThisRun.length} of ${pendingChunks.length} pending chunks this run.`
+      `  RPD cap active: embedding ${chunksThisRun.length} of ${pendingChunks.length} pending chunks this run.`,
     );
-    console.log(`  Re-run tomorrow to continue. Progress is saved automatically.\n`);
+    console.log(
+      `  Re-run tomorrow to continue. Progress is saved automatically.\n`,
+    );
   }
 
   // -----------------------------------------------------------------------
   // Step 4: Embed + incrementally upsert into ChromaDB
   // -----------------------------------------------------------------------
-  console.log('[ Step 4 ] Embedding and storing chunks...');
+  console.log("[ Step 4 ] Embedding and storing chunks...");
   console.log(`  Rate limit: ~92 RPM (650ms between calls)`);
   const estimatedMinutes = ((chunksThisRun.length * 650) / 60_000).toFixed(1);
   console.log(`  Estimated time: ~${estimatedMinutes} minutes\n`);
@@ -116,7 +125,7 @@ async function main() {
       // Upsert immediately after each embedding — progress is saved in real time
       await upsertSingleChunk(embeddedChunk, collection);
       upsertedCount++;
-    }
+    },
   );
 
   console.log(`\n  Embedded and stored: ${upsertedCount} chunks\n`);
@@ -128,7 +137,7 @@ async function main() {
   const totalStored = storedIds.size + upsertedCount;
   const remaining = chunks.length - totalStored;
 
-  console.log('=================================================');
+  console.log("=================================================");
   console.log(`  Ingestion run complete.`);
   console.log(`  Chunks stored this run:  ${upsertedCount}`);
   console.log(`  Total stored in ChromaDB: ${totalStored} / ${chunks.length}`);
@@ -139,11 +148,11 @@ async function main() {
     console.log(`  All chunks ingested. RAG pipeline is ready.`);
   }
   console.log(`  Total time: ${elapsed}s`);
-  console.log('=================================================');
+  console.log("=================================================");
 }
 
 main().catch((err) => {
-  console.error('\nIngestion failed:', err.message || err);
+  console.error("\nIngestion failed:", err.message || err);
   console.error('Progress has been saved. Re-run "npm run ingest" to resume.');
   process.exit(1);
 });
