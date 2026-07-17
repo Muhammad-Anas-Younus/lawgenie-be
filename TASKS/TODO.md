@@ -206,17 +206,17 @@ merged.
 No dependency on anything below Phase 5. Bundle these together — none of
 them touch a file another Wave-1/2 track touches.
 
-- [ ] **10.1** Backend: `Document` model (ownerId, caseId nullable, category
+- [x] **10.1** Backend: `Document` model (ownerId, caseId nullable, category
       `pleading|evidence|court_order|personal|credential`, url, version,
       uploadedAt); `POST /api/documents`, `GET /api/documents?caseId=`, with
       versioning on re-upload of the same logical document.
 - [ ] **10.2** Frontend: Wire `lawyer/LawyerDocumentsPage.jsx` (cross-case
       document library) to 10.1.
-- [ ] **12.1** Backend: `GET/PATCH /api/users/me/settings` (profile info,
+- [x] **12.1** Backend: `GET/PATCH /api/users/me/settings` (profile info,
       password change, notification prefs — shared across roles).
 - [ ] **12.2** Frontend: Wire `client/SettingsPage.jsx`,
       `lawyer/LawyerSettingsPage.jsx`, `mufti/MuftiSettingsPage.jsx` to 12.1.
-- [ ] **11.2a** Backend: Message flagging only — `isFlagged` on `Message` +
+- [x] **11.2a** Backend: Message flagging only — `isFlagged` on `Message` +
       `PATCH /api/admin/messages/:id/flag`. (The review-flagging half, 11.2b,
       needs the `Review` model from 9.1 — done later, in the convergence
       wave.)

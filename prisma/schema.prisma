@@ -35,7 +35,12 @@ model User {
   // Contact (OTP) verification — distinct from LawyerProfile/MuftiProfile's
   // credential VerificationStatus, which admin review gates separately.
   isVerified   Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  // Freeform per-role notification toggles (12.1) — shape varies enough by
+  // role (client/lawyer/mufti/admin each show different toggles) that a
+  // fixed relational schema isn't worth it, same rationale as
+  // LawyerProfile.feeStructure.
+  notificationPrefs Json     @default("{}")
+  createdAt         DateTime @default(now())
 
   lawyerProfile LawyerProfile?
   muftiProfile  MuftiProfile?
@@ -45,6 +50,7 @@ model User {
   consultationsAsLawyer Consultation[] @relation("LawyerConsultations")
   reviewedPayments      Payment[]      @relation("PaymentReviewer")
   sentMessages          Message[]      @relation("MessageSender")
+  documents             Document[]     @relation("DocumentOwner")
 }
 
 model LawyerProfile {
@@ -188,8 +194,49 @@ model Message {
 
   body          String
   attachmentUrl String?
+  // Admin moderation (11.2a) — toggled via PATCH /api/admin/messages/:id/flag.
+  isFlagged     Boolean @default(false)
 
   createdAt DateTime @default(now())
 
   @@index([threadType, threadId])
+}
+
+enum DocumentCategory {
+  PLEADING
+  EVIDENCE
+  COURT_ORDER
+  PERSONAL
+  CREDENTIAL
+}
+
+// A document library entry. caseId is a plain nullable column (not a
+// relation) until the Case model lands in Phase 7 (Track B) — same pattern
+// as Payment's polymorphic FKs above. Versioning: re-uploading "the same"
+// document doesn't create an unrelated row — it's posted with `replaces`
+// set to the prior version's id, and the service carries the shared
+// `groupId` forward with `version` incremented. GET /api/documents returns
+// only the latest version per group by default.
+model Document {
+  id       String @id @default(uuid())
+  ownerId  String
+  owner    User   @relation("DocumentOwner", fields: [ownerId], references: [id])
+  caseId   String?
+
+  category DocumentCategory
+  url      String
+  originalName String
+  mimeType String
+  size     Int
+
+  // All versions of the same logical document share a groupId; a
+  // first-time upload gets groupId == id.
+  groupId String
+  version Int    @default(1)
+
+  uploadedAt DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([caseId])
+  @@index([groupId])
 }

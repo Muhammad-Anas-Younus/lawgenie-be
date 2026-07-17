@@ -179,3 +179,30 @@ export async function reviewVerification(userId, { status, reason }) {
 
   throw new AppError(404, "Verification target not found.");
 }
+
+/**
+ * PATCH /api/admin/messages/:id/flag — toggles a message's moderation flag
+ * (11.2a). The other half of full message moderation (11.2b, a dedicated
+ * flagged-content view) needs the Review model and lands later.
+ */
+export async function toggleMessageFlag(messageId) {
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message) {
+    throw new AppError(404, "Message not found.");
+  }
+
+  const updated = await prisma.message.update({
+    where: { id: messageId },
+    data: { isFlagged: !message.isFlagged },
+  });
+
+  return {
+    id: updated.id,
+    threadType: updated.threadType,
+    threadId: updated.threadId,
+    senderId: updated.senderId,
+    body: updated.body,
+    isFlagged: updated.isFlagged,
+    createdAt: updated.createdAt,
+  };
+}

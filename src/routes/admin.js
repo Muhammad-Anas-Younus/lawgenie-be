@@ -49,4 +49,14 @@ router.patch("/verifications/:id", validate(reviewVerificationSchema), async (re
   }
 });
 
+// PATCH /api/admin/messages/:id/flag — toggles a message's moderation flag (11.2a).
+router.patch("/messages/:id/flag", async (req, res, next) => {
+  try {
+    const result = await adminService.toggleMessageFlag(req.params.id);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

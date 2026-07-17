@@ -10,6 +10,8 @@ import consultationsRouter from "./routes/consultations.js";
 import paymentsRouter from "./routes/payments.js";
 import adminRouter from "./routes/admin.js";
 import threadsRouter from "./routes/threads.js";
+import documentsRouter from "./routes/documents.js";
+import usersRouter from "./routes/users.js";
 import { getSessionCount } from "./middleware/session.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -37,6 +39,8 @@ app.use("/api/consultations", consultationsRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/threads", threadsRouter);
+app.use("/api/documents", documentsRouter);
+app.use("/api/users", usersRouter);
 
 // Health check — also exposes active session count for diagnostics
 app.get("/health", (req, res) => {
