@@ -210,11 +210,11 @@ them touch a file another Wave-1/2 track touches.
       `pleading|evidence|court_order|personal|credential`, url, version,
       uploadedAt); `POST /api/documents`, `GET /api/documents?caseId=`, with
       versioning on re-upload of the same logical document.
-- [ ] **10.2** Frontend: Wire `lawyer/LawyerDocumentsPage.jsx` (cross-case
+- [x] **10.2** Frontend: Wire `lawyer/LawyerDocumentsPage.jsx` (cross-case
       document library) to 10.1.
 - [x] **12.1** Backend: `GET/PATCH /api/users/me/settings` (profile info,
       password change, notification prefs — shared across roles).
-- [ ] **12.2** Frontend: Wire `client/SettingsPage.jsx`,
+- [x] **12.2** Frontend: Wire `client/SettingsPage.jsx`,
       `lawyer/LawyerSettingsPage.jsx`, `mufti/MuftiSettingsPage.jsx` to 12.1.
 - [x] **11.2a** Backend: Message flagging only — `isFlagged` on `Message` +
       `PATCH /api/admin/messages/:id/flag`. (The review-flagging half, 11.2b,
