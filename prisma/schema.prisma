@@ -51,6 +51,10 @@ model User {
   reviewedPayments      Payment[]      @relation("PaymentReviewer")
   sentMessages          Message[]      @relation("MessageSender")
   documents             Document[]     @relation("DocumentOwner")
+  proposalsAsLawyer     Proposal[]     @relation("LawyerProposals")
+  proposalsAsClient     Proposal[]     @relation("ClientProposals")
+  casesAsClient         Case[]         @relation("ClientCases")
+  casesAsLawyer         Case[]         @relation("LawyerCases")
 }
 
 model LawyerProfile {
@@ -141,7 +145,8 @@ model Consultation {
 
   createdAt DateTime @default(now())
 
-  payments Payment[]
+  payments  Payment[]
+  proposals Proposal[]
 }
 
 enum PaymentStatus {
@@ -152,14 +157,15 @@ enum PaymentStatus {
 
 // Polymorphic proof-of-payment record: exactly one of consultationId/
 // caseId/milestoneId/muftiQueryId is set (enforced by a DB check
-// constraint — see the migration). caseId/milestoneId/muftiQueryId stay
-// plain nullable columns, not relations, until those models exist
-// (Phases 6/7/8).
+// constraint — see the migration). milestoneId/muftiQueryId stay plain
+// nullable columns, not relations, until those models exist (Phase 7/8).
+// caseId became a real relation once the Case model landed (Phase 6).
 model Payment {
   id             String        @id @default(uuid())
   consultationId String?
   consultation   Consultation? @relation(fields: [consultationId], references: [id])
   caseId         String?
+  case           Case?         @relation(fields: [caseId], references: [id])
   milestoneId    String?
   muftiQueryId   String?
 
@@ -173,6 +179,70 @@ model Payment {
   reviewedAt   DateTime?
 
   createdAt DateTime @default(now())
+}
+
+enum ProposalStatus {
+  SENT
+  ACCEPTED
+  DECLINED
+}
+
+// A lawyer's formal engagement offer, sendable only once there's a prior
+// APPROVED consultation between the same lawyer and client (no cold
+// proposals — enforced in proposalService, not just here in the schema).
+// feeStructure carries the free-form terms (retainer amount, case type,
+// scope, deliverables, etc.) — same rationale as LawyerProfile.feeStructure:
+// shape varies enough per engagement that a fixed relational schema isn't
+// worth it. `retainerAmount` inside it is what gets charged as the Payment
+// on acceptance.
+model Proposal {
+  id             String       @id @default(uuid())
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  lawyerId       String
+  lawyer         User         @relation("LawyerProposals", fields: [lawyerId], references: [id])
+  clientId       String
+  client         User         @relation("ClientProposals", fields: [clientId], references: [id])
+
+  feeStructure Json
+  status       ProposalStatus @default(SENT)
+
+  createdAt DateTime @default(now())
+
+  case Case?
+
+  @@index([consultationId])
+}
+
+enum CaseStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  CLOSED
+}
+
+// Created the moment a client accepts a Proposal (status PENDING_PAYMENT,
+// alongside the retainer Payment); flips to ACTIVE once an admin approves
+// that payment (see paymentService/adminService). A client may only have
+// one ACTIVE case at a time — enforced in proposalService (at acceptance)
+// and again in adminService (at activation, to close the race where two
+// proposals are accepted before either retainer is reviewed). Lawyers have
+// no such limit.
+model Case {
+  id         String   @id @default(uuid())
+  proposalId String   @unique
+  proposal   Proposal @relation(fields: [proposalId], references: [id])
+  clientId   String
+  client     User     @relation("ClientCases", fields: [clientId], references: [id])
+  lawyerId   String
+  lawyer     User     @relation("LawyerCases", fields: [lawyerId], references: [id])
+
+  status CaseStatus @default(PENDING_PAYMENT)
+
+  createdAt DateTime @default(now())
+
+  payments Payment[]
+
+  @@index([clientId, status])
 }
 
 // Threads are scoped per consultation or per case, not one continuous

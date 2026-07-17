@@ -26,6 +26,14 @@ function toPublicPayment(payment) {
           status: payment.consultation.status,
         }
       : null,
+    case: payment.case
+      ? {
+          id: payment.case.id,
+          client: payment.case.client,
+          lawyer: payment.case.lawyer,
+          status: payment.case.status,
+        }
+      : null,
   };
 }
 
@@ -39,13 +47,16 @@ function generateMeetingLink() {
 
 /**
  * GET /api/admin/payments/pending — every payment still awaiting review,
- * across whichever target types currently exist (only consultations so
- * far; case/milestone/mufti-query payments arrive in later phases).
+ * across whichever target types currently exist (consultations and cases
+ * so far; milestone/mufti-query payments arrive in later phases).
  */
 export async function listPendingPayments() {
   const payments = await prisma.payment.findMany({
     where: { status: "PENDING" },
-    include: { consultation: { include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT } } },
+    include: {
+      consultation: { include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT } },
+      case: { include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT } },
+    },
     orderBy: { createdAt: "asc" },
   });
 
@@ -54,9 +65,16 @@ export async function listPendingPayments() {
 
 /**
  * PATCH /api/admin/payments/:id — approve/reject a pending payment.
- * Approving flips the linked consultation to APPROVED and generates its
- * meeting link; rejecting flips it to REJECTED so the client can see why
- * and re-pay/re-book.
+ * - Consultation payments: approving flips it to APPROVED and generates a
+ *   meeting link; rejecting flips it to REJECTED.
+ * - Case (retainer) payments: approving flips the case to ACTIVE — but
+ *   only if the client doesn't already have another ACTIVE case (a client
+ *   accepting two proposals before either retainer is reviewed is allowed;
+ *   only one of them may actually go ACTIVE, so this is the second half of
+ *   that guard, alongside proposalService.acceptProposal). Rejecting flips
+ *   the case to CLOSED — there's no case-level REJECTED status, and with
+ *   no retry flow (matching how a rejected consultation payment works),
+ *   a failed retainer simply closes out the case attempt.
  */
 export async function reviewPayment(adminId, paymentId, { status, reason }) {
   const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
@@ -65,6 +83,20 @@ export async function reviewPayment(adminId, paymentId, { status, reason }) {
   }
   if (payment.status !== "PENDING") {
     throw new AppError(400, "This payment has already been reviewed.");
+  }
+
+  if (payment.caseId && status === "APPROVED") {
+    const caseRecord = await prisma.case.findUnique({ where: { id: payment.caseId } });
+    const conflictingActiveCase = await prisma.case.findFirst({
+      where: { clientId: caseRecord.clientId, status: "ACTIVE", NOT: { id: caseRecord.id } },
+    });
+    if (conflictingActiveCase) {
+      throw new AppError(
+        409,
+        "This client already has another active case — approve or resolve that one first.",
+        "ACTIVE_CASE_EXISTS"
+      );
+    }
   }
 
   const updates = [
@@ -86,6 +118,15 @@ export async function reviewPayment(adminId, paymentId, { status, reason }) {
     );
   }
 
+  if (payment.caseId) {
+    updates.push(
+      prisma.case.update({
+        where: { id: payment.caseId },
+        data: { status: status === "APPROVED" ? "ACTIVE" : "CLOSED" },
+      })
+    );
+  }
+
   const [updatedPayment] = await prisma.$transaction(updates);
 
   return toPublicPayment({
@@ -93,6 +134,12 @@ export async function reviewPayment(adminId, paymentId, { status, reason }) {
     consultation: payment.consultationId
       ? await prisma.consultation.findUnique({
           where: { id: payment.consultationId },
+          include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT },
+        })
+      : null,
+    case: payment.caseId
+      ? await prisma.case.findUnique({
+          where: { id: payment.caseId },
           include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT },
         })
       : null,

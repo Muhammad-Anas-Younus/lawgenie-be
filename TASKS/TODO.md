@@ -226,13 +226,13 @@ them touch a file another Wave-1/2 track touches.
 The main line everything else hangs off. Start now; stays sequential within
 itself for the rest of the build.
 
-- [ ] **6.1** Backend: `Proposal` model (consultationId, lawyerId, clientId,
+- [x] **6.1** Backend: `Proposal` model (consultationId, lawyerId, clientId,
       feeStructure, status `sent|accepted|declined`) — creatable only from an
       `approved` consultation.
-- [ ] **6.2** Backend: `POST /api/proposals` (lawyer), `PATCH
+- [x] **6.2** Backend: `POST /api/proposals` (lawyer), `PATCH
 /api/proposals/:id/accept` (client — requires a retainer payment
       screenshot upload), `GET /api/proposals/mine`.
-- [ ] **6.3** Backend: `Case` model (proposalId, clientId, lawyerId, status
+- [x] **6.3** Backend: `Case` model (proposalId, clientId, lawyerId, status
       `pending_payment|active|closed`) + enforce the one-active-case-per-
       client rule at creation time (reject if the client already has an
       `active` case).

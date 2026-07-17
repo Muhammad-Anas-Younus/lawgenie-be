@@ -2,11 +2,16 @@
  * Thrown by route handlers/services for expected failure cases (bad input,
  * missing resource, forbidden action) so the centralized handler below can
  * map them to the right HTTP status instead of logging them as 500s.
+ *
+ * `code` is optional — a stable machine-readable string (e.g.
+ * "ACTIVE_CASE_EXISTS") for the rare case where the frontend needs to
+ * distinguish one 4xx from another beyond just showing `message`.
  */
 export class AppError extends Error {
-  constructor(statusCode, message) {
+  constructor(statusCode, message, code) {
     super(message);
     this.statusCode = statusCode;
+    this.code = code;
   }
 }
 
@@ -28,5 +33,9 @@ export function errorHandler(err, req, res, next) {
     console.error("[Unhandled Error]", err);
   }
 
-  res.status(statusCode).json({ error: err.message || "An unexpected error occurred." });
+  const body = { error: err.message || "An unexpected error occurred." };
+  if (err.code) {
+    body.code = err.code;
+  }
+  res.status(statusCode).json(body);
 }
