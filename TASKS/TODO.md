@@ -236,10 +236,10 @@ itself for the rest of the build.
       `pending_payment|active|closed`) + enforce the one-active-case-per-
       client rule at creation time (reject if the client already has an
       `active` case).
-- [ ] **6.4** Frontend: Wire `client/ClientProposalsPage.jsx` (view/accept +
+- [x] **6.4** Frontend: Wire `client/ClientProposalsPage.jsx` (view/accept +
       upload retainer payment) and `lawyer/LawyerProposalsPage.jsx`
       (create/send proposal) to 6.2/6.3.
-- [ ] **6.5** Frontend: Show a clear blocked-state message when a client with
+- [x] **6.5** Frontend: Show a clear blocked-state message when a client with
       an existing active case tries to accept another proposal.
 
 **Wave 1 ends when both tracks merge to `master`.** Track A can merge
