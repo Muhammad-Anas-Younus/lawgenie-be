@@ -7,14 +7,36 @@ feature does both sides before moving on.
 
 ## How to use this file
 
-- Work top to bottom within a phase. Phases are ordered so nothing in a later
-  phase depends on something not yet done in an earlier one.
-- Pick the first unchecked `[ ]` task, do the work, check it off (`[x]`), then
-  move to the next. Don't skip ahead unless a task is explicitly independent.
+Phases 0–5 are done (kept below for the record). Everything after that is
+organized into **waves**, not a flat sequence — within a wave, the listed
+**tracks** have no file overlap and no dependency on each other, so they're
+meant to be worked in parallel (separate branches/worktrees, one agent per
+track). A wave doesn't start until every track in the previous wave has
+merged.
+
+- Within a track, still work top to bottom — a track's own tasks are
+  sequential.
+- Don't start a task whose stated dependency hasn't merged yet, even if it's
+  technically the "next" line in the file.
 - If a task turns out to need something not listed here, add a task for it in
   place rather than improvising undocumented scope.
 - Checking a box means the work is done AND verified working (manually hit the
   endpoint / clicked through the page), not just written.
+
+## Parallel execution model
+
+- Each track gets its own branch: `track/a`, `track/b`, `track/c`, `track/d`,
+  etc. (reuse the letter for a track across waves if it's a continuation,
+  e.g. Track B in Wave 1 and Wave 2 are the same branch/agent).
+- Never push directly to `master`. A track's branch merges to `master` only
+  once every task in it for the current wave is checked off and verified.
+- A track's dependency (e.g. "needs 6.3") means: wait until the branch that
+  did 6.3 has actually merged to `master`, then branch the dependent track
+  off the updated `master` — don't build on top of another track's
+  unmerged branch.
+- If two tracks in the same wave turn out to touch the same file after all,
+  stop and flag it rather than pushing through — that's a sign the track
+  split needs adjusting, not just a merge conflict to power through.
 
 ## Locked decisions (don't re-litigate these)
 
@@ -177,7 +199,32 @@ feature does both sides before moving on.
 
 ---
 
-## Phase 6 — Proposals → Case Creation
+## Wave 1 — start now (2 tracks in parallel)
+
+### Track A — small independents (branch `track/a`)
+
+No dependency on anything below Phase 5. Bundle these together — none of
+them touch a file another Wave-1/2 track touches.
+
+- [ ] **10.1** Backend: `Document` model (ownerId, caseId nullable, category
+      `pleading|evidence|court_order|personal|credential`, url, version,
+      uploadedAt); `POST /api/documents`, `GET /api/documents?caseId=`, with
+      versioning on re-upload of the same logical document.
+- [ ] **10.2** Frontend: Wire `lawyer/LawyerDocumentsPage.jsx` (cross-case
+      document library) to 10.1.
+- [ ] **12.1** Backend: `GET/PATCH /api/users/me/settings` (profile info,
+      password change, notification prefs — shared across roles).
+- [ ] **12.2** Frontend: Wire `client/SettingsPage.jsx`,
+      `lawyer/LawyerSettingsPage.jsx`, `mufti/MuftiSettingsPage.jsx` to 12.1.
+- [ ] **11.2a** Backend: Message flagging only — `isFlagged` on `Message` +
+      `PATCH /api/admin/messages/:id/flag`. (The review-flagging half, 11.2b,
+      needs the `Review` model from 9.1 — done later, in the convergence
+      wave.)
+
+### Track B — case backbone, part 1 (branch `track/b`)
+
+The main line everything else hangs off. Start now; stays sequential within
+itself for the rest of the build.
 
 - [ ] **6.1** Backend: `Proposal` model (consultationId, lawyerId, clientId,
       feeStructure, status `sent|accepted|declined`) — creatable only from an
@@ -195,18 +242,28 @@ feature does both sides before moving on.
 - [ ] **6.5** Frontend: Show a clear blocked-state message when a client with
       an existing active case tries to accept another proposal.
 
+**Wave 1 ends when both tracks merge to `master`.** Track A can merge
+whenever it's done — it doesn't block or get blocked by Track B. Track B's
+`6.3` (the `Case` model landing) is what unlocks Wave 2.
+
 ---
 
-## Phase 7 — Case Management
+## Wave 2 — starts once Track B's `6.3` has merged (3 tracks in parallel)
+
+### Track B — case backbone, part 2 (continues on `track/b`)
+
+Phase 7 (minus 7.11 — that needs Track D's `11.1` first) then Phase 9.
+Kept as one sequential track because both rewrite the same case-detail
+pages; splitting them across tracks would just mean fighting over the same
+files at merge time.
 
 - [ ] **7.1** Backend: `Milestone` model (caseId, title, description,
       dueDate, status, paymentId) + endpoints (lawyer creates/updates, both
       parties + admin can view).
 - [ ] **7.2** Backend: `Hearing` model (caseId, date, location, notes) +
       endpoints (lawyer creates/updates, both parties + admin view).
-- [ ] **7.3** Backend: Case-scoped document endpoints, reusing the general
-      `Document` model from Phase 10 (do Phase 10.1 first if not already
-      done, or land it alongside this task).
+- [ ] **7.3** Backend: Case-scoped document endpoints, reusing the
+      `Document` model from Track A's `10.1` (must already be merged).
 - [ ] **7.4** Backend: Iddat tracker (start date + computed end date) and
       Mehr tracker (amount + paid status) fields/model on `Case`.
 - [ ] **7.5** Backend: `GET /api/cases/:id` returns full case detail
@@ -214,7 +271,8 @@ feature does both sides before moving on.
       Ownership check: client/lawyer restricted to their own case; **admin
       can fetch any case**, no ownership check.
 - [ ] **7.6** Backend: `PATCH /api/cases/:id` restricted to the assigned
-      lawyer for progress/status updates.
+      lawyer for progress/status updates — this is also where a case
+      transitions to `closed`, which is what unlocks Phase 9 below.
 - [ ] **7.7** Frontend: Wire `lawyer/CaseDetail.jsx` with full update
       controls: add/edit hearing dates, upload documents, update
       milestone/progress — this is the lawyer's "update the case" surface.
@@ -228,12 +286,22 @@ feature does both sides before moving on.
       `admin/AdminCaseDetailPage.jsx`, new route `/admin/cases/:id`) — this
       page doesn't exist yet on the frontend and is needed for the "admin can
       open any case" requirement. Read-only, using 7.5.
-- [ ] **7.11** Frontend: Wire the "Report an Issue" button (in both the
-      client and lawyer case views) to create a dispute (Phase 11.1).
+- [ ] **9.1** Backend: `Review` model (raterId, rateeId, context
+      `consultation|case`, overallStars, category scores — communication,
+      expertise, value, professionalism, responsiveness — plus text) with
+      rules: client→lawyer (post consultation or case close), lawyer→client
+      (post case close), lawyer→mufti (post guidance).
+- [ ] **9.2** Backend: `POST /api/reviews`, `GET /api/lawyers/:id/reviews`
+      (public — feeds the Phase 2 profile display).
+- [ ] **9.3** Frontend: Add review-submission UI at case-close in
+      `client/ClientCasePage.jsx` / `lawyer/CaseDetail.jsx`; display
+      aggregate ratings on `LawyerDetailPage.jsx` and `BrowseLawyersPage.jsx`.
 
----
+### Track C — Mufti system (branch `track/c`)
 
-## Phase 8 — Mufti System (lawyer-only)
+Only needs `6.3` (the `Case` model) — nothing here touches a file Track B
+or D touches, until `8.6`, which is deliberately held for the convergence
+wave.
 
 - [ ] **8.1** Backend: `MuftiQuery` model (caseId, lawyerId, muftiId,
       urgency, fee, paymentId, question, answer, citations, status) — a
@@ -249,79 +317,71 @@ feature does both sides before moving on.
       own query statuses) to 8.2.
 - [ ] **8.5** Frontend: Wire `mufti/MuftiDashboard.jsx` (queue) and
       `mufti/MuftiQueryDetail.jsx` (respond with citations) to 8.2.
-- [ ] **8.6** Frontend: Surface the Islamic guidance history inside
-      `lawyer/CaseDetail.jsx` and `client/ClientCasePage.jsx`.
 
----
+### Track D — disputes backbone + client roster (branch `track/d`)
 
-## Phase 9 — Reviews & Ratings
-
-- [ ] **9.1** Backend: `Review` model (raterId, rateeId, context
-      `consultation|case`, overallStars, category scores — communication,
-      expertise, value, professionalism, responsiveness — plus text) with
-      rules: client→lawyer (post consultation or case close), lawyer→client
-      (post case close), lawyer→mufti (post guidance).
-- [ ] **9.2** Backend: `POST /api/reviews`, `GET /api/lawyers/:id/reviews`
-      (public — feeds the Phase 2 profile display).
-- [ ] **9.3** Frontend: Add review-submission UI at case-close in
-      `client/ClientCasePage.jsx` / `lawyer/CaseDetail.jsx`; display
-      aggregate ratings on `LawyerDetailPage.jsx` and `BrowseLawyersPage.jsx`.
-
----
-
-## Phase 10 — Document Management
-
-- [ ] **10.1** Backend: `Document` model (ownerId, caseId nullable, category
-      `pleading|evidence|court_order|personal|credential`, url, version,
-      uploadedAt); `POST /api/documents`, `GET /api/documents?caseId=`, with
-      versioning on re-upload of the same logical document.
-- [ ] **10.2** Frontend: Wire `lawyer/LawyerDocumentsPage.jsx` (cross-case
-      document library) to 10.1.
-- [ ] **10.3** Frontend: Confirm the case-scoped upload/list built in 7.3
-      reuses this same model/endpoints rather than a separate one.
-
----
-
-## Phase 11 — Admin: Disputes, Moderation, Analytics
+Only needs `6.3`. Different files than B and C.
 
 - [ ] **11.1** Backend: `Dispute` model (raisedById, caseId, reason, status,
       resolution) + `POST /api/disputes`, `GET /api/admin/disputes`, `PATCH
 /api/admin/disputes/:id`.
-- [ ] **11.2** Backend: Flagging — `isFlagged` on `Message`/`Review` +
-      `PATCH /api/admin/messages/:id/flag`, `PATCH
-/api/admin/reviews/:id/moderate`.
-- [ ] **11.3** Backend: Fatwa knowledge-base curation — endpoint to approve a
-      Mufti's answer for reuse by the chatbot's fatwa database (ties into the
-      existing `src/services/documentLoader.js` / vector store ingestion).
-- [ ] **11.4** Backend: Analytics endpoints — registrations by role, case
-      volume by status, payment volume/approval stats, lawyer/Mufti
-      performance, satisfaction/NPS (`GET /api/admin/analytics/*`).
 - [ ] **11.5** Frontend: Wire `admin/AdminDisputesPage.jsx` to 11.1.
-- [ ] **11.6** Frontend: Replace the dummy `STATS`/`GROWTH_DATA`/
-      `RECENT_USERS` arrays in `admin/AdminDashboardPage.jsx` with 11.4 plus
-      a real, searchable user list.
-- [ ] **11.7** Frontend: Add a flagged-content moderation view (new admin
-      section) wired to 11.2/11.3.
+- [ ] **12.5** Frontend: Wire `lawyer/MyClientsPage.jsx` (roster of clients/
+      cases) to `GET /api/cases/mine` (lawyer view — many concurrent cases).
+
+**Wave 2 ends when Tracks B, C, and D have all merged to `master`.**
 
 ---
 
-## Phase 12 — Settings, Earnings, Client Rosters
+## Wave 3 — convergence (sequential, single track, after Wave 2 merges)
 
-- [ ] **12.1** Backend: `GET/PATCH /api/users/me/settings` (profile info,
-      password change, notification prefs — shared across roles).
-- [ ] **12.2** Frontend: Wire `client/SettingsPage.jsx`,
-      `lawyer/LawyerSettingsPage.jsx`, `mufti/MuftiSettingsPage.jsx` to 12.1.
+Everything here specifically touches files two Wave-2 tracks both built
+toward — do these one at a time on `master` (or one short-lived branch)
+instead of trying to parallelize further.
+
+- [ ] **7.11** Frontend: Wire the "Report an Issue" button (in both the
+      client and lawyer case views) to create a dispute, using `11.1`.
+- [ ] **8.6** Frontend: Surface the Islamic guidance history inside
+      `lawyer/CaseDetail.jsx` and `client/ClientCasePage.jsx`, using `8.1-8.5`.
+- [ ] **10.3** Frontend: Confirm the case-scoped upload/list built in `7.3`
+      reuses the `10.1` model/endpoints rather than a separate one.
+- [ ] **11.2b** Backend: Review flagging — `isFlagged` on `Review` + `PATCH
+/api/admin/reviews/:id/moderate` (the other half of `11.2`, needs `9.1`).
+- [ ] **11.3** Backend: Fatwa knowledge-base curation — endpoint to approve a
+      Mufti's answer for reuse by the chatbot's fatwa database (ties into the
+      existing `src/services/documentLoader.js` / vector store ingestion) —
+      needs Phase 8.
+- [ ] **11.7** Frontend: Add a flagged-content moderation view (new admin
+      section) wired to `11.2a`/`11.2b`/`11.3`.
+
+---
+
+## Wave 4 — Earnings
+
+Needs `7.1` (milestones) and Phase 8 (Mufti fees) — both done as of Wave 2.
+
 - [ ] **12.3** Backend: `GET /api/lawyers/me/earnings` and the Mufti
       equivalent — aggregate consultation/retainer/milestone/Mufti-fee
       payment history.
 - [ ] **12.4** Frontend: Wire `lawyer/LawyerEarningsPage.jsx` and the
       earnings section of `mufti/MuftiDashboard.jsx` to 12.3.
-- [ ] **12.5** Frontend: Wire `lawyer/MyClientsPage.jsx` (roster of clients/
-      cases) to `GET /api/cases/mine` (lawyer view — many concurrent cases).
 
 ---
 
-## Phase 13 — Non-Functional Hardening
+## Wave 5 — Analytics
+
+Aggregates across everything above — genuinely needs it all done first.
+
+- [ ] **11.4** Backend: Analytics endpoints — registrations by role, case
+      volume by status, payment volume/approval stats, lawyer/Mufti
+      performance, satisfaction/NPS (`GET /api/admin/analytics/*`).
+- [ ] **11.6** Frontend: Replace the dummy `STATS`/`GROWTH_DATA`/
+      `RECENT_USERS` arrays in `admin/AdminDashboardPage.jsx` with 11.4 plus
+      a real, searchable user list.
+
+---
+
+## Wave 6 — Non-Functional Hardening (last, no parallelism)
 
 - [ ] **13.1** Backend: Audit-log model; write an entry on every payment
       decision, verification decision, dispute resolution, and account
