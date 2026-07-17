@@ -322,7 +322,7 @@ wave.
 
 Only needs `6.3`. Different files than B and C.
 
-- [ ] **11.1** Backend: `Dispute` model (raisedById, caseId, reason, status,
+- [x] **11.1** Backend: `Dispute` model (raisedById, caseId, reason, status,
       resolution) + `POST /api/disputes`, `GET /api/admin/disputes`, `PATCH
 /api/admin/disputes/:id`.
 - [ ] **11.5** Frontend: Wire `admin/AdminDisputesPage.jsx` to 11.1.
