@@ -8,7 +8,9 @@ import {
   lawyerUpdateSchema,
   lawyerRecommendationsQuerySchema,
 } from "../validators/lawyerValidators.js";
+import { listReviewsQuerySchema } from "../validators/reviewValidators.js";
 import * as lawyerService from "../services/lawyerService.js";
+import * as reviewService from "../services/reviewService.js";
 
 const router = Router();
 const uploadCredentials = createUploader("credentials");
@@ -87,6 +89,16 @@ router.patch(
 router.get("/:id", async (req, res, next) => {
   try {
     const result = await lawyerService.getLawyerById(req.params.id);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/lawyers/:id/reviews — public, feeds the profile's review list.
+router.get("/:id/reviews", validate(listReviewsQuerySchema, "query"), async (req, res, next) => {
+  try {
+    const result = await reviewService.listLawyerReviews(req.params.id, req.query);
     res.status(200).json(result);
   } catch (err) {
     next(err);

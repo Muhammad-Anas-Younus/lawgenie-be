@@ -257,20 +257,20 @@ Kept as one sequential track because both rewrite the same case-detail
 pages; splitting them across tracks would just mean fighting over the same
 files at merge time.
 
-- [ ] **7.1** Backend: `Milestone` model (caseId, title, description,
+- [x] **7.1** Backend: `Milestone` model (caseId, title, description,
       dueDate, status, paymentId) + endpoints (lawyer creates/updates, both
       parties + admin can view).
-- [ ] **7.2** Backend: `Hearing` model (caseId, date, location, notes) +
+- [x] **7.2** Backend: `Hearing` model (caseId, date, location, notes) +
       endpoints (lawyer creates/updates, both parties + admin view).
-- [ ] **7.3** Backend: Case-scoped document endpoints, reusing the
+- [x] **7.3** Backend: Case-scoped document endpoints, reusing the
       `Document` model from Track A's `10.1` (must already be merged).
-- [ ] **7.4** Backend: Iddat tracker (start date + computed end date) and
+- [x] **7.4** Backend: Iddat tracker (start date + computed end date) and
       Mehr tracker (amount + paid status) fields/model on `Case`.
-- [ ] **7.5** Backend: `GET /api/cases/:id` returns full case detail
+- [x] **7.5** Backend: `GET /api/cases/:id` returns full case detail
       (milestones, hearings, documents, trackers, Mufti guidance log).
       Ownership check: client/lawyer restricted to their own case; **admin
       can fetch any case**, no ownership check.
-- [ ] **7.6** Backend: `PATCH /api/cases/:id` restricted to the assigned
+- [x] **7.6** Backend: `PATCH /api/cases/:id` restricted to the assigned
       lawyer for progress/status updates — this is also where a case
       transitions to `closed`, which is what unlocks Phase 9 below.
 - [ ] **7.7** Frontend: Wire `lawyer/CaseDetail.jsx` with full update
@@ -286,12 +286,12 @@ files at merge time.
       `admin/AdminCaseDetailPage.jsx`, new route `/admin/cases/:id`) — this
       page doesn't exist yet on the frontend and is needed for the "admin can
       open any case" requirement. Read-only, using 7.5.
-- [ ] **9.1** Backend: `Review` model (raterId, rateeId, context
+- [x] **9.1** Backend: `Review` model (raterId, rateeId, context
       `consultation|case`, overallStars, category scores — communication,
       expertise, value, professionalism, responsiveness — plus text) with
       rules: client→lawyer (post consultation or case close), lawyer→client
       (post case close), lawyer→mufti (post guidance).
-- [ ] **9.2** Backend: `POST /api/reviews`, `GET /api/lawyers/:id/reviews`
+- [x] **9.2** Backend: `POST /api/reviews`, `GET /api/lawyers/:id/reviews`
       (public — feeds the Phase 2 profile display).
 - [ ] **9.3** Frontend: Add review-submission UI at case-close in
       `client/ClientCasePage.jsx` / `lawyer/CaseDetail.jsx`; display

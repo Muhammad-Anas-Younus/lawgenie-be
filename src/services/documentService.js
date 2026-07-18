@@ -24,10 +24,10 @@ function toPublicDocument(doc) {
 
 /**
  * POST /api/documents — upload a document into the caller's library.
- * Ownership is always the uploader (`ownerId`); `caseId` is a plain nullable
- * column until the Case model lands (Phase 7 / Track B) — no ownership
- * enforcement against a case is possible yet, so this only ever writes/
- * reads documents scoped to the caller (see listDocuments below).
+ * Ownership is always the uploader (`ownerId`); if `caseId` is given, the
+ * uploader must be a participant (client or lawyer) on that case — case
+ * documents form a shared repository visible to both parties (see
+ * listDocuments below), not just the uploader's own library.
  *
  * Versioning: when `replaces` is given, the new row inherits the prior
  * version's `groupId` and `caseId`/`category` (unless overridden), and its
@@ -38,6 +38,13 @@ function toPublicDocument(doc) {
 export async function createDocument(ownerId, { category, caseId, replaces }, file) {
   if (!file) {
     throw new AppError(400, "A file is required.");
+  }
+
+  if (caseId) {
+    const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
+    if (!caseRecord || (caseRecord.clientId !== ownerId && caseRecord.lawyerId !== ownerId)) {
+      throw new AppError(404, "Case not found.");
+    }
   }
 
   let groupId = crypto.randomUUID();
@@ -78,15 +85,25 @@ export async function createDocument(ownerId, { category, caseId, replaces }, fi
 }
 
 /**
- * GET /api/documents?caseId= — the caller's own document library, optionally
- * filtered by case. Returns only the latest version per logical document
- * unless `allVersions` is set. Scoped to `ownerId = user.id` for everyone,
- * including admins — case-participant access (client + lawyer both seeing
- * a shared case's documents) arrives once the Case model lands (Phase 7 /
- * Track B; see 10.3) and can check real participant membership.
+ * GET /api/documents?caseId= — without `caseId`, the caller's own document
+ * library. With `caseId`, the shared case document set: both the client
+ * and lawyer on that case (plus admin) see every document uploaded to it,
+ * not just their own — that's the point of a shared case document
+ * repository (PRD 6.6). Returns only the latest version per logical
+ * document unless `allVersions` is set.
  */
 export async function listDocuments(user, { caseId, allVersions }) {
-  const where = { ownerId: user.id, ...(caseId ? { caseId } : {}) };
+  let where;
+  if (caseId) {
+    const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
+    const isParticipant = caseRecord && (caseRecord.clientId === user.id || caseRecord.lawyerId === user.id);
+    if (!caseRecord || (user.role !== "ADMIN" && !isParticipant)) {
+      throw new AppError(404, "Case not found.");
+    }
+    where = { caseId };
+  } else {
+    where = { ownerId: user.id };
+  }
 
   const documents = await prisma.document.findMany({
     where,

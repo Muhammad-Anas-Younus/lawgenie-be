@@ -26,15 +26,15 @@ enum VerificationStatus {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String?  @unique
-  phone        String?  @unique
-  passwordHash String
-  role         Role
+  id                String   @id @default(uuid())
+  name              String
+  email             String?  @unique
+  phone             String?  @unique
+  passwordHash      String
+  role              Role
   // Contact (OTP) verification — distinct from LawyerProfile/MuftiProfile's
   // credential VerificationStatus, which admin review gates separately.
-  isVerified   Boolean  @default(false)
+  isVerified        Boolean  @default(false)
   // Freeform per-role notification toggles (12.1) — shape varies enough by
   // role (client/lawyer/mufti/admin each show different toggles) that a
   // fixed relational schema isn't worth it, same rationale as
@@ -55,6 +55,8 @@ model User {
   proposalsAsClient     Proposal[]     @relation("ClientProposals")
   casesAsClient         Case[]         @relation("ClientCases")
   casesAsLawyer         Case[]         @relation("LawyerCases")
+  reviewsGiven          Review[]       @relation("ReviewsGiven")
+  reviewsReceived       Review[]       @relation("ReviewsReceived")
 }
 
 model LawyerProfile {
@@ -147,6 +149,7 @@ model Consultation {
 
   payments  Payment[]
   proposals Proposal[]
+  reviews   Review[]
 }
 
 enum PaymentStatus {
@@ -157,9 +160,11 @@ enum PaymentStatus {
 
 // Polymorphic proof-of-payment record: exactly one of consultationId/
 // caseId/milestoneId/muftiQueryId is set (enforced by a DB check
-// constraint — see the migration). milestoneId/muftiQueryId stay plain
-// nullable columns, not relations, until those models exist (Phase 7/8).
-// caseId became a real relation once the Case model landed (Phase 6).
+// constraint — see the migration). muftiQueryId stays a plain nullable
+// column, not a relation, until the MuftiQuery model exists (Phase 8,
+// landing in a parallel track this same wave). caseId became a real
+// relation once the Case model landed (Phase 6); milestoneId became one
+// once the Milestone model landed (Phase 7).
 model Payment {
   id             String        @id @default(uuid())
   consultationId String?
@@ -167,6 +172,7 @@ model Payment {
   caseId         String?
   case           Case?         @relation(fields: [caseId], references: [id])
   milestoneId    String?
+  milestone      Milestone?    @relation(fields: [milestoneId], references: [id])
   muftiQueryId   String?
 
   screenshotUrl String
@@ -236,13 +242,136 @@ model Case {
   lawyerId   String
   lawyer     User     @relation("LawyerCases", fields: [lawyerId], references: [id])
 
-  status CaseStatus @default(PENDING_PAYMENT)
+  status   CaseStatus @default(PENDING_PAYMENT)
+  // Simple 0-100 completion indicator the lawyer sets directly (alongside
+  // the finer-grained Milestone list) to drive the case dashboard's
+  // progress bar (PRD 6.6 "visual progress timeline") — settable via
+  // PATCH /api/cases/:id, lawyer-only.
+  progress Int        @default(0)
+
+  // Iddat tracker (PRD 6.6 "Special Trackers") — the mandatory waiting
+  // period a woman observes after divorce/death of spouse. endDate is
+  // computed by caseService as startDate + 90 days (the commonly-used
+  // three-lunar-month approximation in Pakistani family law practice) and
+  // stored denormalized so it's directly queryable/displayable without
+  // recomputing on every read.
+  iddatStartDate DateTime?
+  iddatEndDate   DateTime?
+
+  // Mehr (dower) tracker (PRD 6.6) — amount in PKR and whether it has been
+  // paid. Kept as plain fields rather than a submodel since, like Milestone
+  // payments, there's exactly one Mehr per case and no history to track.
+  mehrAmount Int?
+  mehrPaid   Boolean @default(false)
 
   createdAt DateTime @default(now())
 
-  payments Payment[]
+  payments   Payment[]
+  milestones Milestone[]
+  hearings   Hearing[]
+  documents  Document[]
+  reviews    Review[]
 
   @@index([clientId, status])
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// A concrete step in a case's progress (PRD 6.6 "Milestone tracking:
+// document submission, court dates, decisions"). The lawyer creates/
+// updates these; both parties and admin can view them via
+// GET /api/cases/:id. A milestone's associated payment (PRD 6.7 "milestone
+// payment due") is reached via the reverse of Payment.milestoneId rather
+// than a forward column here, matching how Case's retainer Payment works.
+model Milestone {
+  id          String          @id @default(uuid())
+  caseId      String
+  case        Case            @relation(fields: [caseId], references: [id])
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      MilestoneStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([caseId])
+}
+
+// A scheduled court hearing on a case (PRD 6.6 "Court hearing schedule").
+// The lawyer creates/updates these; both parties and admin can view them
+// via GET /api/cases/:id, and a lawyer can list all of their own upcoming
+// hearings across every active case via GET /api/hearings/mine.
+model Hearing {
+  id       String   @id @default(uuid())
+  caseId   String
+  case     Case     @relation(fields: [caseId], references: [id])
+  date     DateTime
+  location String?
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([caseId])
+}
+
+// Which relationship a Review is rating — CONSULTATION and CASE cover the
+// two client<->lawyer directions (client->lawyer post consultation/case
+// close, lawyer->client post case close); GUIDANCE covers lawyer->mufti
+// post guidance. The task brief shorthanded this as "context
+// consultation|case", but a third context is needed to represent the
+// lawyer->mufti path distinctly from a plain case review, so it's named
+// out explicitly here.
+enum ReviewContext {
+  CONSULTATION
+  CASE
+  GUIDANCE
+}
+
+// A rating + optional written review from one user of another, gated by
+// role/context rules enforced in reviewService (not here): client->lawyer
+// (post APPROVED/COMPLETED consultation, or post case close), lawyer->
+// client (post case close), lawyer->mufti (post guidance). Exactly one of
+// consultationId/caseId/muftiQueryId is set, matching `context`.
+// muftiQueryId stays a plain column, not a relation, since the MuftiQuery
+// model lands in a parallel track this same wave (same pattern as
+// Payment.muftiQueryId above).
+model Review {
+  id      String @id @default(uuid())
+  raterId String
+  rater   User   @relation("ReviewsGiven", fields: [raterId], references: [id])
+  rateeId String
+  ratee   User   @relation("ReviewsReceived", fields: [rateeId], references: [id])
+
+  context        ReviewContext
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  caseId         String?
+  case           Case?         @relation(fields: [caseId], references: [id])
+  muftiQueryId   String?
+
+  overallStars    Int
+  // Category scores (PRD 6.3 "categorized scores") — optional since not
+  // every review context (e.g. a quick lawyer->mufti guidance rating)
+  // necessarily fills all of them in on the frontend.
+  communication   Int?
+  expertise       Int?
+  value           Int?
+  professionalism Int?
+  responsiveness  Int?
+  text            String?
+
+  createdAt DateTime @default(now())
+
+  @@index([rateeId])
+  @@index([raterId])
 }
 
 // Threads are scoped per consultation or per case, not one continuous
@@ -280,24 +409,25 @@ enum DocumentCategory {
   CREDENTIAL
 }
 
-// A document library entry. caseId is a plain nullable column (not a
-// relation) until the Case model lands in Phase 7 (Track B) — same pattern
-// as Payment's polymorphic FKs above. Versioning: re-uploading "the same"
-// document doesn't create an unrelated row — it's posted with `replaces`
-// set to the prior version's id, and the service carries the shared
-// `groupId` forward with `version` incremented. GET /api/documents returns
-// only the latest version per group by default.
+// A document library entry. caseId became a real relation once the Case
+// model landed (Phase 7 / Track B) — same pattern as Payment's polymorphic
+// FKs above. Versioning: re-uploading "the same" document doesn't create
+// an unrelated row — it's posted with `replaces` set to the prior version's
+// id, and the service carries the shared `groupId` forward with `version`
+// incremented. GET /api/documents returns only the latest version per
+// group by default.
 model Document {
-  id       String @id @default(uuid())
-  ownerId  String
-  owner    User   @relation("DocumentOwner", fields: [ownerId], references: [id])
-  caseId   String?
+  id      String  @id @default(uuid())
+  ownerId String
+  owner   User    @relation("DocumentOwner", fields: [ownerId], references: [id])
+  caseId  String?
+  case    Case?   @relation(fields: [caseId], references: [id])
 
-  category DocumentCategory
-  url      String
+  category     DocumentCategory
+  url          String
   originalName String
-  mimeType String
-  size     Int
+  mimeType     String
+  size         Int
 
   // All versions of the same logical document share a groupId; a
   // first-time upload gets groupId == id.
