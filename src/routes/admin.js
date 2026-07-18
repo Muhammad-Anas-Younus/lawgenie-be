@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
-import { reviewPaymentSchema, reviewVerificationSchema } from "../validators/adminValidators.js";
+import { reviewPaymentSchema, reviewVerificationSchema, listUsersQuerySchema } from "../validators/adminValidators.js";
 import { reviewDisputeSchema } from "../validators/disputeValidators.js";
 import * as adminService from "../services/adminService.js";
 import * as disputeService from "../services/disputeService.js";
 import * as reviewService from "../services/reviewService.js";
 import * as muftiQueryService from "../services/muftiQueryService.js";
+import * as analyticsService from "../services/analyticsService.js";
 
 const router = Router();
 
@@ -131,6 +132,40 @@ router.get("/disputes", async (req, res, next) => {
 router.patch("/disputes/:id", validate(reviewDisputeSchema), async (req, res, next) => {
   try {
     const result = await disputeService.reviewDispute(req.params.id, req.body);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/analytics/overview — top-level stat cards + growth chart
+// data (registrations by role/trend, case volume by status, payment
+// volume/approval stats) (11.4).
+router.get("/analytics/overview", async (req, res, next) => {
+  try {
+    const result = await analyticsService.getOverview();
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/analytics/performance — lawyer/Mufti performance and
+// platform satisfaction/NPS (11.4).
+router.get("/analytics/performance", async (req, res, next) => {
+  try {
+    const result = await analyticsService.getPerformance();
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/users — searchable/filterable roster of every account
+// (needed by 11.6's real user list).
+router.get("/users", validate(listUsersQuerySchema, "query"), async (req, res, next) => {
+  try {
+    const result = await adminService.listUsers(req.query);
     res.status(200).json(result);
   } catch (err) {
     next(err);

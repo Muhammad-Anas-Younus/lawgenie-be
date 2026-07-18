@@ -372,7 +372,7 @@ Needs `7.1` (milestones) and Phase 8 (Mufti fees) — both done as of Wave 2.
 
 Aggregates across everything above — genuinely needs it all done first.
 
-- [ ] **11.4** Backend: Analytics endpoints — registrations by role, case
+- [x] **11.4** Backend: Analytics endpoints — registrations by role, case
       volume by status, payment volume/approval stats, lawyer/Mufti
       performance, satisfaction/NPS (`GET /api/admin/analytics/*`).
 - [ ] **11.6** Frontend: Replace the dummy `STATS`/`GROWTH_DATA`/

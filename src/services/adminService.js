@@ -303,3 +303,56 @@ export async function listFlaggedMessages() {
     createdAt: m.createdAt,
   }));
 }
+
+/**
+ * GET /api/admin/users — searchable/filterable roster of every account on
+ * the platform (11.6's "real, searchable user list"). Search matches
+ * name/email/phone (case-insensitive contains); role is an exact filter.
+ * Verification status is only meaningful for LAWYER/MUFTI (credential
+ * review, Phase 4) — null for CLIENT/ADMIN rows.
+ */
+export async function listUsers({ search, role, page, limit }) {
+  const where = {
+    ...(role ? { role } : {}),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { phone: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      include: {
+        lawyerProfile: { select: { verificationStatus: true } },
+        muftiProfile: { select: { verificationStatus: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return {
+    users: users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      isVerified: u.isVerified,
+      verificationStatus: u.lawyerProfile?.verificationStatus ?? u.muftiProfile?.verificationStatus ?? null,
+      createdAt: u.createdAt,
+    })),
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  };
+}
