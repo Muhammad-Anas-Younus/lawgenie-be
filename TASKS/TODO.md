@@ -303,19 +303,19 @@ Only needs `6.3` (the `Case` model) — nothing here touches a file Track B
 or D touches, until `8.6`, which is deliberately held for the convergence
 wave.
 
-- [ ] **8.1** Backend: `MuftiQuery` model (caseId, lawyerId, muftiId,
+- [x] **8.1** Backend: `MuftiQuery` model (caseId, lawyerId, muftiId,
       urgency, fee, paymentId, question, answer, citations, status) — a
       query is only visible to the Mufti once its linked payment is
       `approved`.
-- [ ] **8.2** Backend: `POST /api/mufti-queries` (lawyer — submits query +
+- [x] **8.2** Backend: `POST /api/mufti-queries` (lawyer — submits query +
       uploads payment screenshot together), `GET /api/mufti-queries/queue`
       (Mufti — only approved-payment queries), `PATCH
 /api/mufti-queries/:id/respond` (Mufti).
-- [ ] **8.3** Backend: On response, append an entry to the case's Islamic
+- [x] **8.3** Backend: On response, append an entry to the case's Islamic
       guidance history.
-- [ ] **8.4** Frontend: Wire `lawyer/FatwaRequests.jsx` (submit query, see
+- [x] **8.4** Frontend: Wire `lawyer/FatwaRequests.jsx` (submit query, see
       own query statuses) to 8.2.
-- [ ] **8.5** Frontend: Wire `mufti/MuftiDashboard.jsx` (queue) and
+- [x] **8.5** Frontend: Wire `mufti/MuftiDashboard.jsx` (queue) and
       `mufti/MuftiQueryDetail.jsx` (respond with citations) to 8.2.
 
 ### Track D — disputes backbone + client roster (branch `track/d`)

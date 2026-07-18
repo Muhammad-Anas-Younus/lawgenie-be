@@ -34,6 +34,14 @@ function toPublicPayment(payment) {
           status: payment.case.status,
         }
       : null,
+    muftiQuery: payment.muftiQuery
+      ? {
+          id: payment.muftiQuery.id,
+          lawyer: payment.muftiQuery.lawyer,
+          urgency: payment.muftiQuery.urgency,
+          status: payment.muftiQuery.status,
+        }
+      : null,
   };
 }
 
@@ -56,6 +64,7 @@ export async function listPendingPayments() {
     include: {
       consultation: { include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT } },
       case: { include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT } },
+      muftiQuery: { include: { lawyer: PARTICIPANT_SELECT } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -75,6 +84,10 @@ export async function listPendingPayments() {
  *   the case to CLOSED — there's no case-level REJECTED status, and with
  *   no retry flow (matching how a rejected consultation payment works),
  *   a failed retainer simply closes out the case attempt.
+ * - Mufti query payments: approving flips the query to PENDING_RESPONSE —
+ *   this is what makes it enter the Mufti's shared queue (see
+ *   muftiQueryService.listQueue). Rejecting flips it to REJECTED, terminal,
+ *   same no-retry pattern as consultations/cases.
  */
 export async function reviewPayment(adminId, paymentId, { status, reason }) {
   const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
@@ -127,6 +140,15 @@ export async function reviewPayment(adminId, paymentId, { status, reason }) {
     );
   }
 
+  if (payment.muftiQueryId) {
+    updates.push(
+      prisma.muftiQuery.update({
+        where: { id: payment.muftiQueryId },
+        data: { status: status === "APPROVED" ? "PENDING_RESPONSE" : "REJECTED" },
+      })
+    );
+  }
+
   const [updatedPayment] = await prisma.$transaction(updates);
 
   return toPublicPayment({
@@ -141,6 +163,12 @@ export async function reviewPayment(adminId, paymentId, { status, reason }) {
       ? await prisma.case.findUnique({
           where: { id: payment.caseId },
           include: { client: PARTICIPANT_SELECT, lawyer: PARTICIPANT_SELECT },
+        })
+      : null,
+    muftiQuery: payment.muftiQueryId
+      ? await prisma.muftiQuery.findUnique({
+          where: { id: payment.muftiQueryId },
+          include: { lawyer: PARTICIPANT_SELECT },
         })
       : null,
   });
