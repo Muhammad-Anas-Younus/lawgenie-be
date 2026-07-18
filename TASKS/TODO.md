@@ -351,7 +351,7 @@ instead of trying to parallelize further.
       Mufti's answer for reuse by the chatbot's fatwa database (ties into the
       existing `src/services/documentLoader.js` / vector store ingestion) —
       needs Phase 8.
-- [ ] **11.7** Frontend: Add a flagged-content moderation view (new admin
+- [x] **11.7** Frontend: Add a flagged-content moderation view (new admin
       section) wired to `11.2a`/`11.2b`/`11.3`.
 
 ---
