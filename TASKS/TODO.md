@@ -313,9 +313,9 @@ wave.
 /api/mufti-queries/:id/respond` (Mufti).
 - [x] **8.3** Backend: On response, append an entry to the case's Islamic
       guidance history.
-- [ ] **8.4** Frontend: Wire `lawyer/FatwaRequests.jsx` (submit query, see
+- [x] **8.4** Frontend: Wire `lawyer/FatwaRequests.jsx` (submit query, see
       own query statuses) to 8.2.
-- [ ] **8.5** Frontend: Wire `mufti/MuftiDashboard.jsx` (queue) and
+- [x] **8.5** Frontend: Wire `mufti/MuftiDashboard.jsx` (queue) and
       `mufti/MuftiQueryDetail.jsx` (respond with citations) to 8.2.
 
 ### Track D — disputes backbone + client roster (branch `track/d`)
