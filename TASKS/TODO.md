@@ -322,11 +322,11 @@ wave.
 
 Only needs `6.3`. Different files than B and C.
 
-- [ ] **11.1** Backend: `Dispute` model (raisedById, caseId, reason, status,
+- [x] **11.1** Backend: `Dispute` model (raisedById, caseId, reason, status,
       resolution) + `POST /api/disputes`, `GET /api/admin/disputes`, `PATCH
 /api/admin/disputes/:id`.
-- [ ] **11.5** Frontend: Wire `admin/AdminDisputesPage.jsx` to 11.1.
-- [ ] **12.5** Frontend: Wire `lawyer/MyClientsPage.jsx` (roster of clients/
+- [x] **11.5** Frontend: Wire `admin/AdminDisputesPage.jsx` to 11.1.
+- [x] **12.5** Frontend: Wire `lawyer/MyClientsPage.jsx` (roster of clients/
       cases) to `GET /api/cases/mine` (lawyer view — many concurrent cases).
 
 **Wave 2 ends when Tracks B, C, and D have all merged to `master`.**

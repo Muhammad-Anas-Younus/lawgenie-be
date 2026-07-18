@@ -2,7 +2,9 @@ import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { reviewPaymentSchema, reviewVerificationSchema } from "../validators/adminValidators.js";
+import { reviewDisputeSchema } from "../validators/disputeValidators.js";
 import * as adminService from "../services/adminService.js";
+import * as disputeService from "../services/disputeService.js";
 
 const router = Router();
 
@@ -53,6 +55,28 @@ router.patch("/verifications/:id", validate(reviewVerificationSchema), async (re
 router.patch("/messages/:id/flag", async (req, res, next) => {
   try {
     const result = await adminService.toggleMessageFlag(req.params.id);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/disputes — every dispute (open, in review, resolved) for
+// the moderation queue.
+router.get("/disputes", async (req, res, next) => {
+  try {
+    const disputes = await disputeService.listAll();
+    res.status(200).json({ disputes });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/admin/disputes/:id — admin moves a dispute to IN_REVIEW or
+// closes it out RESOLVED (with a resolution note).
+router.patch("/disputes/:id", validate(reviewDisputeSchema), async (req, res, next) => {
+  try {
+    const result = await disputeService.reviewDispute(req.params.id, req.body);
     res.status(200).json(result);
   } catch (err) {
     next(err);

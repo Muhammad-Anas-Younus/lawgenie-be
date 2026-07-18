@@ -59,6 +59,7 @@ model User {
   reviewsReceived       Review[]       @relation("ReviewsReceived")
   muftiQueriesAsLawyer  MuftiQuery[]   @relation("LawyerMuftiQueries")
   muftiQueriesAsMufti   MuftiQuery[]   @relation("MuftiMuftiQueries")
+  disputesRaised        Dispute[]      @relation("DisputeRaisedBy")
 }
 
 model LawyerProfile {
@@ -273,6 +274,7 @@ model Case {
   documents    Document[]
   reviews      Review[]
   muftiQueries MuftiQuery[]
+  disputes     Dispute[]
 
   @@index([clientId, status])
 }
@@ -504,5 +506,35 @@ model MuftiQuery {
 
   @@index([caseId])
   @@index([muftiId])
+  @@index([status])
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+}
+
+// A client or lawyer flagging a problem on their own case for admin
+// mediation (PRD §6.7/11.1) — e.g. a missed session or a fee disagreement.
+// caseId is a real relation (unlike Payment's polymorphic FKs) since a
+// dispute is always case-scoped; raisedById can be either party on the
+// case, checked in disputeService rather than the schema. `resolution` is
+// only set once an admin closes it out via PATCH .../:id.
+model Dispute {
+  id          String @id @default(uuid())
+  raisedById  String
+  raisedBy    User   @relation("DisputeRaisedBy", fields: [raisedById], references: [id])
+  caseId      String
+  case        Case   @relation(fields: [caseId], references: [id])
+
+  reason     String
+  status     DisputeStatus @default(OPEN)
+  resolution String?
+
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+
+  @@index([caseId])
   @@index([status])
 }
