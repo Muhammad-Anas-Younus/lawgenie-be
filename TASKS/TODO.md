@@ -273,16 +273,16 @@ files at merge time.
 - [x] **7.6** Backend: `PATCH /api/cases/:id` restricted to the assigned
       lawyer for progress/status updates — this is also where a case
       transitions to `closed`, which is what unlocks Phase 9 below.
-- [ ] **7.7** Frontend: Wire `lawyer/CaseDetail.jsx` with full update
+- [x] **7.7** Frontend: Wire `lawyer/CaseDetail.jsx` with full update
       controls: add/edit hearing dates, upload documents, update
       milestone/progress — this is the lawyer's "update the case" surface.
-- [ ] **7.8** Frontend: Wire `client/ClientCasePage.jsx` ("My Case") as the
+- [x] **7.8** Frontend: Wire `client/ClientCasePage.jsx` ("My Case") as the
       client-facing mirror of 7.7 — it should reflect the lawyer's updates
       (use React Query invalidation/refetch on a reasonable interval or after
       relevant mutations).
-- [ ] **7.9** Frontend: Wire `lawyer/CourtHearingsPage.jsx` to aggregate
+- [x] **7.9** Frontend: Wire `lawyer/CourtHearingsPage.jsx` to aggregate
       hearings across all of that lawyer's active cases.
-- [ ] **7.10** Frontend: Build a new admin case-detail view (new file, e.g.
+- [x] **7.10** Frontend: Build a new admin case-detail view (new file, e.g.
       `admin/AdminCaseDetailPage.jsx`, new route `/admin/cases/:id`) — this
       page doesn't exist yet on the frontend and is needed for the "admin can
       open any case" requirement. Read-only, using 7.5.
@@ -293,7 +293,7 @@ files at merge time.
       (post case close), lawyer→mufti (post guidance).
 - [x] **9.2** Backend: `POST /api/reviews`, `GET /api/lawyers/:id/reviews`
       (public — feeds the Phase 2 profile display).
-- [ ] **9.3** Frontend: Add review-submission UI at case-close in
+- [x] **9.3** Frontend: Add review-submission UI at case-close in
       `client/ClientCasePage.jsx` / `lawyer/CaseDetail.jsx`; display
       aggregate ratings on `LawyerDetailPage.jsx` and `BrowseLawyersPage.jsx`.
 
