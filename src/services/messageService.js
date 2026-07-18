@@ -16,14 +16,23 @@ function toPublicMessage(message) {
 }
 
 /**
- * Resolves a thread to its participants + "paid" gate. Only CONSULTATION
- * threads exist so far — CASE threads arrive with the Case model in
- * Phase 7, so they 400 for now rather than 404 (the type is valid, just
- * not usable yet).
+ * Resolves a thread to its participants + "paid" gate. CASE threads
+ * (Phase 7 / Track B) reuse the same "no contact until paid" gate as
+ * CONSULTATION threads: a Case exists in PENDING_PAYMENT until the
+ * retainer payment is admin-approved, at which point it flips to ACTIVE
+ * (and later CLOSED) — messaging unlocks at that same point.
  */
 async function resolveThread(threadType, threadId) {
   if (threadType === "CASE") {
-    throw new AppError(400, "Case messaging isn't available yet.");
+    const caseRecord = await prisma.case.findUnique({ where: { id: threadId } });
+    if (!caseRecord) {
+      throw new AppError(404, "Thread not found.");
+    }
+    return {
+      clientId: caseRecord.clientId,
+      lawyerId: caseRecord.lawyerId,
+      isPaid: caseRecord.status === "ACTIVE" || caseRecord.status === "CLOSED",
+    };
   }
   if (threadType !== "CONSULTATION") {
     throw new AppError(400, "Unknown thread type.");

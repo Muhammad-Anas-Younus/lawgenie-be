@@ -102,6 +102,30 @@ async function listCaseDocuments(caseId) {
 }
 
 /**
+ * GET /api/cases/mine — CLIENT/LAWYER only. A client can have at most one
+ * ACTIVE case (PRD 6.6) but may have PENDING_PAYMENT or past CLOSED ones
+ * too, so this returns every case they're a participant on (most recent
+ * first) rather than assuming exactly one — the frontend's "My Case" page
+ * picks the most relevant one (ACTIVE > PENDING_PAYMENT > most recently
+ * CLOSED). A lawyer has no such limit and sees every case they're assigned.
+ */
+export async function listMyCases(user) {
+  const where = user.role === "CLIENT" ? { clientId: user.id } : { lawyerId: user.id };
+
+  const cases = await prisma.case.findMany({
+    where,
+    include: {
+      client: PARTICIPANT_SELECT,
+      lawyer: PARTICIPANT_SELECT,
+      proposal: { select: { id: true, feeStructure: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return cases.map(toPublicCase);
+}
+
+/**
  * Loads a case and enforces the caller's access to it: client/lawyer are
  * restricted to their own case (404, not 403, so a case id isn't
  * enumerable), admin can load any case.

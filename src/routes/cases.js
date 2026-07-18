@@ -12,6 +12,18 @@ import * as caseService from "../services/caseService.js";
 
 const router = Router();
 
+// GET /api/cases/mine — CLIENT sees their own case(s), LAWYER sees every
+// case they're assigned to. Declared before /:id so "mine" isn't swallowed
+// as an :id param.
+router.get("/mine", requireAuth, requireRole("CLIENT", "LAWYER"), async (req, res, next) => {
+  try {
+    const result = await caseService.listMyCases(req.user);
+    res.status(200).json({ cases: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/cases/:id — full case detail (milestones, hearings, documents,
 // trackers, guidance log). Ownership enforced in the service: client/
 // lawyer restricted to their own case, admin can fetch any case.
