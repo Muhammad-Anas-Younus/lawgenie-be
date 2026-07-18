@@ -161,7 +161,7 @@ async function loadAuthorizedCase(user, caseId) {
 export async function getCaseDetail(user, caseId) {
   const caseRecord = await loadAuthorizedCase(user, caseId);
 
-  const [milestones, hearings, documents] = await Promise.all([
+  const [milestones, hearings, documents, myReview] = await Promise.all([
     prisma.milestone.findMany({
       where: { caseId },
       include: { payments: true },
@@ -169,6 +169,13 @@ export async function getCaseDetail(user, caseId) {
     }),
     prisma.hearing.findMany({ where: { caseId }, orderBy: { date: "asc" } }),
     listCaseDocuments(caseId),
+    // Whether the caller has already left their post-close review on this
+    // case (client->lawyer or lawyer->client) — lets the frontend hide the
+    // "leave a review" prompt after it's been used, without a separate
+    // "list my reviews" endpoint.
+    user.role === "ADMIN"
+      ? null
+      : prisma.review.findFirst({ where: { caseId, raterId: user.id, context: "CASE" } }),
   ]);
 
   return {
@@ -176,6 +183,7 @@ export async function getCaseDetail(user, caseId) {
     milestones: milestones.map(toPublicMilestone),
     hearings: hearings.map(toPublicHearing),
     documents,
+    reviewedByMe: Boolean(myReview),
     // Mufti guidance log — populated once MuftiQuery (Track C) lands.
     guidanceLog: [],
   };
