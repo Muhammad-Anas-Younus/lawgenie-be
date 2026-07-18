@@ -55,6 +55,8 @@ model User {
   proposalsAsClient     Proposal[]     @relation("ClientProposals")
   casesAsClient         Case[]         @relation("ClientCases")
   casesAsLawyer         Case[]         @relation("LawyerCases")
+  muftiQueriesAsLawyer  MuftiQuery[]   @relation("LawyerMuftiQueries")
+  muftiQueriesAsMufti   MuftiQuery[]   @relation("MuftiMuftiQueries")
 }
 
 model LawyerProfile {
@@ -157,9 +159,9 @@ enum PaymentStatus {
 
 // Polymorphic proof-of-payment record: exactly one of consultationId/
 // caseId/milestoneId/muftiQueryId is set (enforced by a DB check
-// constraint — see the migration). milestoneId/muftiQueryId stay plain
-// nullable columns, not relations, until those models exist (Phase 7/8).
-// caseId became a real relation once the Case model landed (Phase 6).
+// constraint — see the migration). milestoneId stays a plain nullable
+// column, not a relation, until that model exists (Phase 7). caseId and
+// muftiQueryId became real relations once those models landed (Phase 6/8).
 model Payment {
   id             String        @id @default(uuid())
   consultationId String?
@@ -168,6 +170,7 @@ model Payment {
   case           Case?         @relation(fields: [caseId], references: [id])
   milestoneId    String?
   muftiQueryId   String?
+  muftiQuery     MuftiQuery?   @relation(fields: [muftiQueryId], references: [id])
 
   screenshotUrl String
   amount        Int
@@ -240,7 +243,8 @@ model Case {
 
   createdAt DateTime @default(now())
 
-  payments Payment[]
+  payments     Payment[]
+  muftiQueries MuftiQuery[]
 
   @@index([clientId, status])
 }
@@ -309,4 +313,68 @@ model Document {
   @@index([ownerId])
   @@index([caseId])
   @@index([groupId])
+}
+
+// PRD §6.5 fee tiers (PKR) — snapshotted onto MuftiQuery.fee at submission
+// time so a later tier price change doesn't alter an existing query, same
+// rationale as Consultation.fee.
+enum MuftiQueryUrgency {
+  STANDARD // 300, 48h response target
+  URGENT // 600, 24h response target
+  CRITICAL // 1000, 4h response target
+}
+
+// PENDING_PAYMENT until the linked Payment is reviewed; admin approval
+// moves it to PENDING_RESPONSE (this is what makes it enter the Mufti's
+// queue — see muftiQueryService/adminService), rejection is terminal
+// (REJECTED, no retry — same pattern as Consultation/Case). RESPONDED once
+// a Mufti has answered.
+enum MuftiQueryStatus {
+  PENDING_PAYMENT
+  PENDING_RESPONSE
+  RESPONDED
+  REJECTED
+}
+
+// A lawyer's request for Islamic legal guidance (fatwa) on one of their
+// active cases (Mufti consultation is lawyer-only — PRD §6.5, no direct
+// client access). Not assigned to a specific Mufti at submission — muftiId
+// is nullable and only gets set on response, by whichever verified Mufti
+// claims it off the shared queue (GET /mufti-queries/queue). A query is
+// only visible in that queue once its linked Payment is `approved` — the
+// Mufti never sees a query with an unapproved payment. Islamic guidance
+// history for a case is derived by querying RESPONDED rows for that
+// caseId at read time rather than a separate log field — see
+// muftiQueryService for the reasoning (same "don't duplicate a source of
+// truth" rationale as LawyerProfile.averageRating being the one place that
+// *does* denormalize, because that one needs cross-request aggregation
+// performance; this doesn't).
+model MuftiQuery {
+  id       String @id @default(uuid())
+  caseId   String
+  case     Case   @relation(fields: [caseId], references: [id])
+  lawyerId String
+  lawyer   User   @relation("LawyerMuftiQueries", fields: [lawyerId], references: [id])
+  muftiId  String?
+  mufti    User?  @relation("MuftiMuftiQueries", fields: [muftiId], references: [id])
+
+  urgency MuftiQueryUrgency
+  fee     Int
+
+  question  String
+  answer    String?
+  // Mandatory Islamic source citations (Quran/Hadith/Fiqh/law references)
+  // on response — free text per entry, no fixed structure needed.
+  citations String[]
+
+  status MuftiQueryStatus @default(PENDING_PAYMENT)
+
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  payments Payment[]
+
+  @@index([caseId])
+  @@index([muftiId])
+  @@index([status])
 }
