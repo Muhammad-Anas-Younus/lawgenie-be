@@ -372,6 +372,10 @@ model Review {
   responsiveness  Int?
   text            String?
 
+  // Admin moderation (11.2b) — the other half of message flagging (11.2a),
+  // toggled via PATCH /api/admin/reviews/:id/moderate.
+  isFlagged Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   @@index([rateeId])
@@ -501,6 +505,13 @@ model MuftiQuery {
 
   createdAt   DateTime  @default(now())
   respondedAt DateTime?
+  // Set once an admin approves this answered query for reuse as chatbot
+  // knowledge (11.3) — null means either not yet answered or answered but
+  // not curated. Curation upserts the Q&A into the vector store (see
+  // muftiQueryService.curateForKnowledgeBase); this timestamp is just the
+  // DB-side record of that having happened, not the source of truth for
+  // what's actually embedded.
+  curatedAt DateTime?
 
   payments Payment[]
 

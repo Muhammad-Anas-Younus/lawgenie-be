@@ -20,6 +20,7 @@ function toPublicReview(review) {
     professionalism: review.professionalism,
     responsiveness: review.responsiveness,
     text: review.text,
+    isFlagged: review.isFlagged,
     createdAt: review.createdAt,
   };
 }
@@ -32,7 +33,7 @@ function toPublicReview(review) {
  */
 async function syncLawyerRating(lawyerId) {
   const agg = await prisma.review.aggregate({
-    where: { rateeId: lawyerId },
+    where: { rateeId: lawyerId, isFlagged: false },
     _avg: { overallStars: true },
     _count: true,
   });
@@ -181,9 +182,13 @@ export async function createReview(rater, body) {
 
 /**
  * GET /api/lawyers/:id/reviews — public, feeds the Phase 2 profile display.
+ * Excludes flagged reviews — unlike message flagging (11.2a, private
+ * threads only the two participants + admin ever see), a Review is
+ * public-facing, so flagging one pulls it from public view while an admin
+ * looks at it rather than just marking it for later attention.
  */
 export async function listLawyerReviews(lawyerId, { page = 1, limit = 10 } = {}) {
-  const where = { rateeId: lawyerId };
+  const where = { rateeId: lawyerId, isFlagged: false };
 
   const [reviews, total] = await Promise.all([
     prisma.review.findMany({
@@ -203,4 +208,43 @@ export async function listLawyerReviews(lawyerId, { page = 1, limit = 10 } = {})
     total,
     totalPages: Math.ceil(total / limit),
   };
+}
+
+/**
+ * GET /api/admin/reviews/flagged — the moderation queue (11.7).
+ */
+export async function listFlagged() {
+  const reviews = await prisma.review.findMany({
+    where: { isFlagged: true },
+    include: { rater: RATER_SELECT, ratee: RATER_SELECT },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return reviews.map((r) => ({ ...toPublicReview(r), ratee: r.ratee }));
+}
+
+/**
+ * PATCH /api/admin/reviews/:id/moderate — toggles a review's moderation
+ * flag (11.2b, the other half of 11.2 alongside message flagging). Re-syncs
+ * the ratee's denormalized rating either way, since flagged reviews are
+ * excluded from both the public listing and the aggregate.
+ */
+export async function moderateReview(reviewId) {
+  const review = await prisma.review.findUnique({ where: { id: reviewId } });
+  if (!review) {
+    throw new AppError(404, "Review not found.");
+  }
+
+  const updated = await prisma.review.update({
+    where: { id: reviewId },
+    data: { isFlagged: !review.isFlagged },
+    include: { rater: RATER_SELECT, ratee: RATER_SELECT },
+  });
+
+  const ratee = await prisma.user.findUnique({ where: { id: review.rateeId } });
+  if (ratee?.role === "LAWYER") {
+    await syncLawyerRating(review.rateeId);
+  }
+
+  return { ...toPublicReview(updated), ratee: updated.ratee };
 }

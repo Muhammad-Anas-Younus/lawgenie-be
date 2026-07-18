@@ -281,3 +281,25 @@ export async function toggleMessageFlag(messageId) {
     createdAt: updated.createdAt,
   };
 }
+
+/**
+ * GET /api/admin/messages/flagged — the flagged-message moderation queue
+ * (11.7), newest first.
+ */
+export async function listFlaggedMessages() {
+  const messages = await prisma.message.findMany({
+    where: { isFlagged: true },
+    include: { sender: PARTICIPANT_SELECT },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return messages.map((m) => ({
+    id: m.id,
+    threadType: m.threadType,
+    threadId: m.threadId,
+    sender: m.sender,
+    body: m.body,
+    isFlagged: m.isFlagged,
+    createdAt: m.createdAt,
+  }));
+}

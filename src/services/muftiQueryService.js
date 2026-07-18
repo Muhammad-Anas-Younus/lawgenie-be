@@ -1,5 +1,7 @@
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { embedText } from "./embeddingService.js";
+import { getOrCreateCollection, upsertSingleChunk } from "./vectorStore.js";
 
 const PARTICIPANT_SELECT = { select: { id: true, name: true } };
 const QUERY_INCLUDE = {
@@ -45,6 +47,7 @@ function toPublicQuery(query) {
     status: query.status,
     createdAt: query.createdAt,
     respondedAt: query.respondedAt,
+    curatedAt: query.curatedAt,
     payments: query.payments?.map((p) => ({
       id: p.id,
       screenshotUrl: p.screenshotUrl,
@@ -225,4 +228,62 @@ export async function getGuidanceHistory(caseId) {
     citations: q.citations,
     respondedAt: q.respondedAt,
   }));
+}
+
+/**
+ * GET /api/admin/mufti-queries/curatable — RESPONDED queries not yet
+ * approved for the chatbot's knowledge base (11.3), newest-answered first.
+ */
+export async function listCuratable() {
+  const queries = await prisma.muftiQuery.findMany({
+    where: { status: "RESPONDED", curatedAt: null },
+    include: QUERY_INCLUDE,
+    orderBy: { respondedAt: "desc" },
+  });
+
+  return queries.map(toPublicQuery);
+}
+
+/**
+ * PATCH /api/admin/mufti-queries/:id/curate — admin approves an answered
+ * query for reuse by the chatbot. Embeds the Q&A as a single chunk (a
+ * fatwa is already a natural, self-contained unit — no need for
+ * documentLoader's paragraph/heading chunking) and upserts it into the
+ * same ChromaDB collection scripts/ingestDocuments.js populates, so
+ * ragService.queryCollection picks it up on the very next chat query.
+ * Re-curating (e.g. after a Mufti edit, if that ever lands) just
+ * re-upserts under the same id — Chroma upsert overwrites in place.
+ */
+export async function curateForKnowledgeBase(queryId) {
+  const query = await prisma.muftiQuery.findUnique({ where: { id: queryId } });
+  if (!query) {
+    throw new AppError(404, "Query not found.");
+  }
+  if (query.status !== "RESPONDED") {
+    throw new AppError(400, "Only an answered query can be curated.");
+  }
+
+  const source = `Mufti Guidance: ${query.question.slice(0, 80)}`;
+  const text = [
+    `Question: ${query.question}`,
+    `Answer: ${query.answer}`,
+    query.citations.length > 0 ? `Citations: ${query.citations.join("; ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const embedding = await embedText(text);
+  const collection = await getOrCreateCollection();
+  await upsertSingleChunk(
+    { id: `mufti-query-${query.id}`, text, embedding, metadata: { source, chunkIndex: 0 } },
+    collection
+  );
+
+  const updated = await prisma.muftiQuery.update({
+    where: { id: queryId },
+    data: { curatedAt: new Date() },
+    include: QUERY_INCLUDE,
+  });
+
+  return toPublicQuery(updated);
 }

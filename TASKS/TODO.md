@@ -345,9 +345,9 @@ instead of trying to parallelize further.
       `lawyer/CaseDetail.jsx` and `client/ClientCasePage.jsx`, using `8.1-8.5`.
 - [x] **10.3** Frontend: Confirm the case-scoped upload/list built in `7.3`
       reuses the `10.1` model/endpoints rather than a separate one.
-- [ ] **11.2b** Backend: Review flagging — `isFlagged` on `Review` + `PATCH
+- [x] **11.2b** Backend: Review flagging — `isFlagged` on `Review` + `PATCH
 /api/admin/reviews/:id/moderate` (the other half of `11.2`, needs `9.1`).
-- [ ] **11.3** Backend: Fatwa knowledge-base curation — endpoint to approve a
+- [x] **11.3** Backend: Fatwa knowledge-base curation — endpoint to approve a
       Mufti's answer for reuse by the chatbot's fatwa database (ties into the
       existing `src/services/documentLoader.js` / vector store ingestion) —
       needs Phase 8.

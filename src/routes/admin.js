@@ -5,6 +5,8 @@ import { reviewPaymentSchema, reviewVerificationSchema } from "../validators/adm
 import { reviewDisputeSchema } from "../validators/disputeValidators.js";
 import * as adminService from "../services/adminService.js";
 import * as disputeService from "../services/disputeService.js";
+import * as reviewService from "../services/reviewService.js";
+import * as muftiQueryService from "../services/muftiQueryService.js";
 
 const router = Router();
 
@@ -55,6 +57,58 @@ router.patch("/verifications/:id", validate(reviewVerificationSchema), async (re
 router.patch("/messages/:id/flag", async (req, res, next) => {
   try {
     const result = await adminService.toggleMessageFlag(req.params.id);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/messages/flagged — the flagged-message moderation queue (11.7).
+router.get("/messages/flagged", async (req, res, next) => {
+  try {
+    const messages = await adminService.listFlaggedMessages();
+    res.status(200).json({ messages });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/reviews/flagged — the flagged-review moderation queue (11.7).
+router.get("/reviews/flagged", async (req, res, next) => {
+  try {
+    const reviews = await reviewService.listFlagged();
+    res.status(200).json({ reviews });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/admin/reviews/:id/moderate — toggles a review's moderation flag (11.2b).
+router.patch("/reviews/:id/moderate", async (req, res, next) => {
+  try {
+    const result = await reviewService.moderateReview(req.params.id);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/mufti-queries/curatable — answered queries not yet
+// approved for the chatbot knowledge base (11.3).
+router.get("/mufti-queries/curatable", async (req, res, next) => {
+  try {
+    const queries = await muftiQueryService.listCuratable();
+    res.status(200).json({ queries });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/admin/mufti-queries/:id/curate — approve an answered query
+// for reuse by the chatbot's fatwa database (11.3).
+router.patch("/mufti-queries/:id/curate", async (req, res, next) => {
+  try {
+    const result = await muftiQueryService.curateForKnowledgeBase(req.params.id);
     res.status(200).json(result);
   } catch (err) {
     next(err);
