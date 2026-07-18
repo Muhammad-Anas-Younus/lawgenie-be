@@ -360,7 +360,7 @@ instead of trying to parallelize further.
 
 Needs `7.1` (milestones) and Phase 8 (Mufti fees) — both done as of Wave 2.
 
-- [ ] **12.3** Backend: `GET /api/lawyers/me/earnings` and the Mufti
+- [x] **12.3** Backend: `GET /api/lawyers/me/earnings` and the Mufti
       equivalent — aggregate consultation/retainer/milestone/Mufti-fee
       payment history.
 - [ ] **12.4** Frontend: Wire `lawyer/LawyerEarningsPage.jsx` and the

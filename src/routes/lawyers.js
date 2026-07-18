@@ -69,6 +69,16 @@ router.get("/me", requireAuth, requireRole("LAWYER"), async (req, res, next) => 
   }
 });
 
+// GET /api/lawyers/me/earnings — the authenticated lawyer's earnings breakdown.
+router.get("/me/earnings", requireAuth, requireRole("LAWYER"), async (req, res, next) => {
+  try {
+    const result = await lawyerService.getOwnEarnings(req.user.id);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/lawyers/me — the authenticated lawyer editing their own profile.
 router.patch(
   "/me",

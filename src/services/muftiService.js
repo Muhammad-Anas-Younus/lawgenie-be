@@ -60,3 +60,47 @@ export async function registerMufti(
     otp: process.env.NODE_ENV === "production" ? undefined : otp,
   };
 }
+
+/**
+ * GET /api/muftis/me/earnings — aggregates every APPROVED payment on this
+ * Mufti's answered queries. Unlike a lawyer, a Mufti has exactly one
+ * payment type (the MuftiQuery fee — see schema comment on Payment), so
+ * there's no byType breakdown, just a total + urgency-tier subtotal
+ * (mirroring the fee-tier structure in MuftiQueryUrgency) for a bit of
+ * shape parity with the lawyer endpoint's breakdown.
+ */
+export async function getOwnEarnings(muftiId) {
+  const payments = await prisma.payment.findMany({
+    where: { status: "APPROVED", muftiQuery: { muftiId } },
+    include: {
+      muftiQuery: {
+        include: { lawyer: { select: { id: true, name: true } } },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const transactions = payments.map((p) => ({
+    id: p.id,
+    type: "MUFTI_FEE",
+    amount: p.amount,
+    urgency: p.muftiQuery?.urgency ?? null,
+    lawyer: p.muftiQuery?.lawyer ?? null,
+    muftiQueryId: p.muftiQueryId,
+    createdAt: p.createdAt,
+    reviewedAt: p.reviewedAt,
+  }));
+
+  const byUrgency = { STANDARD: 0, URGENT: 0, CRITICAL: 0 };
+  for (const t of transactions) {
+    if (t.urgency && byUrgency[t.urgency] !== undefined) {
+      byUrgency[t.urgency] += t.amount;
+    }
+  }
+
+  return {
+    total: transactions.reduce((sum, t) => sum + t.amount, 0),
+    byUrgency,
+    transactions,
+  };
+}

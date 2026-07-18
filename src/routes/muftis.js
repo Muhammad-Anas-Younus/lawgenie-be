@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createUploader } from "../middleware/upload.js";
 import { validate } from "../middleware/validate.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 import { muftiRegisterSchema } from "../validators/professionalValidators.js";
 import * as muftiService from "../services/muftiService.js";
 
@@ -21,5 +22,15 @@ router.post(
     }
   }
 );
+
+// GET /api/muftis/me/earnings — the authenticated Mufti's earnings breakdown.
+router.get("/me/earnings", requireAuth, requireRole("MUFTI"), async (req, res, next) => {
+  try {
+    const result = await muftiService.getOwnEarnings(req.user.id);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;

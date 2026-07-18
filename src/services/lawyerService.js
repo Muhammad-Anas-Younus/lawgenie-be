@@ -167,6 +167,95 @@ export async function updateOwnProfile(userId, data) {
 }
 
 /**
+ * GET /api/lawyers/me/earnings — aggregates every APPROVED payment across
+ * the three payment types a lawyer can earn from (consultation fee, case
+ * retainer, milestone payment), traced back to this lawyer via the
+ * underlying record's lawyerId (Payment itself has no lawyerId — see
+ * schema comment on the Payment model). Only APPROVED payments count as
+ * real earnings; PENDING/REJECTED are excluded entirely (unlike the
+ * frontend's old dummy data, which also surfaced pending/overdue amounts —
+ * there's no "overdue" concept here since there's no billing schedule,
+ * just admin-reviewed proof-of-payment screenshots).
+ */
+export async function getOwnEarnings(lawyerId) {
+  const [consultationPayments, casePayments, milestonePayments] = await Promise.all([
+    prisma.payment.findMany({
+      where: { status: "APPROVED", consultation: { lawyerId } },
+      include: {
+        consultation: { include: { client: { select: { id: true, name: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.payment.findMany({
+      where: { status: "APPROVED", case: { lawyerId } },
+      include: {
+        case: { include: { client: { select: { id: true, name: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.payment.findMany({
+      where: { status: "APPROVED", milestone: { case: { lawyerId } } },
+      include: {
+        milestone: {
+          include: { case: { include: { client: { select: { id: true, name: true } } } } },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  const sum = (payments) => payments.reduce((total, p) => total + p.amount, 0);
+
+  const transactions = [
+    ...consultationPayments.map((p) => ({
+      id: p.id,
+      type: "CONSULTATION",
+      amount: p.amount,
+      client: p.consultation?.client ?? null,
+      consultationId: p.consultationId,
+      caseId: null,
+      milestoneId: null,
+      createdAt: p.createdAt,
+      reviewedAt: p.reviewedAt,
+    })),
+    ...casePayments.map((p) => ({
+      id: p.id,
+      type: "RETAINER",
+      amount: p.amount,
+      client: p.case?.client ?? null,
+      consultationId: null,
+      caseId: p.caseId,
+      milestoneId: null,
+      createdAt: p.createdAt,
+      reviewedAt: p.reviewedAt,
+    })),
+    ...milestonePayments.map((p) => ({
+      id: p.id,
+      type: "MILESTONE",
+      amount: p.amount,
+      client: p.milestone?.case?.client ?? null,
+      consultationId: null,
+      caseId: p.milestone?.caseId ?? null,
+      milestoneId: p.milestoneId,
+      createdAt: p.createdAt,
+      reviewedAt: p.reviewedAt,
+    })),
+  ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const byType = {
+    consultations: sum(consultationPayments),
+    retainers: sum(casePayments),
+    milestones: sum(milestonePayments),
+  };
+
+  return {
+    total: byType.consultations + byType.retainers + byType.milestones,
+    byType,
+    transactions,
+  };
+}
+
+/**
  * GET /api/lawyers/recommendations — AI-assisted matching (PRD 6.3) over
  * the currently verified lawyer pool. Falls back to a simple specialization
  * match, ranked by rating/experience, if Gemini is unavailable or returns
