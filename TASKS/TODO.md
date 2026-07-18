@@ -363,7 +363,7 @@ Needs `7.1` (milestones) and Phase 8 (Mufti fees) — both done as of Wave 2.
 - [x] **12.3** Backend: `GET /api/lawyers/me/earnings` and the Mufti
       equivalent — aggregate consultation/retainer/milestone/Mufti-fee
       payment history.
-- [ ] **12.4** Frontend: Wire `lawyer/LawyerEarningsPage.jsx` and the
+- [x] **12.4** Frontend: Wire `lawyer/LawyerEarningsPage.jsx` and the
       earnings section of `mufti/MuftiDashboard.jsx` to 12.3.
 
 ---
