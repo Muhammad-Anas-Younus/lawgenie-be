@@ -339,11 +339,11 @@ Everything here specifically touches files two Wave-2 tracks both built
 toward — do these one at a time on `master` (or one short-lived branch)
 instead of trying to parallelize further.
 
-- [ ] **7.11** Frontend: Wire the "Report an Issue" button (in both the
+- [x] **7.11** Frontend: Wire the "Report an Issue" button (in both the
       client and lawyer case views) to create a dispute, using `11.1`.
-- [ ] **8.6** Frontend: Surface the Islamic guidance history inside
+- [x] **8.6** Frontend: Surface the Islamic guidance history inside
       `lawyer/CaseDetail.jsx` and `client/ClientCasePage.jsx`, using `8.1-8.5`.
-- [ ] **10.3** Frontend: Confirm the case-scoped upload/list built in `7.3`
+- [x] **10.3** Frontend: Confirm the case-scoped upload/list built in `7.3`
       reuses the `10.1` model/endpoints rather than a separate one.
 - [ ] **11.2b** Backend: Review flagging — `isFlagged` on `Review` + `PATCH
 /api/admin/reviews/:id/moderate` (the other half of `11.2`, needs `9.1`).

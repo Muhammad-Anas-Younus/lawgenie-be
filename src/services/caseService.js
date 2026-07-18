@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { getGuidanceHistory } from "./muftiQueryService.js";
 
 const PARTICIPANT_SELECT = { select: { id: true, name: true, email: true, phone: true } };
 const IDDAT_PERIOD_DAYS = 90; // three-lunar-month approximation used in Pakistani family law practice
@@ -154,14 +155,15 @@ async function loadAuthorizedCase(user, caseId) {
 
 /**
  * GET /api/cases/:id — full case detail: milestones, hearings, documents,
- * trackers, and a Mufti guidance log. The guidance log is left as an empty
- * array for now — Mufti queries are a Track C model landing later this
- * same wave, so there's nothing to populate yet, but the shape is ready.
+ * trackers, and a Mufti guidance log. The guidance log is sourced from
+ * muftiQueryService.getGuidanceHistory, which derives it from RESPONDED
+ * MuftiQuery rows rather than a separate stored log (see that function's
+ * own comment for the reasoning).
  */
 export async function getCaseDetail(user, caseId) {
   const caseRecord = await loadAuthorizedCase(user, caseId);
 
-  const [milestones, hearings, documents, myReview] = await Promise.all([
+  const [milestones, hearings, documents, myReview, guidanceLog] = await Promise.all([
     prisma.milestone.findMany({
       where: { caseId },
       include: { payments: true },
@@ -176,6 +178,7 @@ export async function getCaseDetail(user, caseId) {
     user.role === "ADMIN"
       ? null
       : prisma.review.findFirst({ where: { caseId, raterId: user.id, context: "CASE" } }),
+    getGuidanceHistory(caseId),
   ]);
 
   return {
@@ -184,8 +187,7 @@ export async function getCaseDetail(user, caseId) {
     hearings: hearings.map(toPublicHearing),
     documents,
     reviewedByMe: Boolean(myReview),
-    // Mufti guidance log — populated once MuftiQuery (Track C) lands.
-    guidanceLog: [],
+    guidanceLog,
   };
 }
 
