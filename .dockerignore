@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.env
+.git
+.gitignore
+chroma_data/
+uploads/*
+!uploads/payments/.gitkeep
+!uploads/documents/.gitkeep
+!uploads/credentials/.gitkeep
+documents/
+src/generated/prisma
+README.md
+documentation/
+TASKS/
