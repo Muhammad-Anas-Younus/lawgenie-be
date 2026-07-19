@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma.js";
 import { generateOtp } from "./otpService.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { getLLM } from "../config/gemini.js";
+import { matchCategory } from "./caseCategories.js";
 
 const SALT_ROUNDS = 10;
 
@@ -387,6 +388,77 @@ Respond with ONLY a JSON array, no markdown, no explanation, in this exact shape
   } catch {
     return fallback();
   }
+}
+
+/**
+ * Computes a real, DB-derived cost estimate for a family-law case
+ * category — used by the chatbot (ragService) so it can tell a user what
+ * things typically cost on LawGenie without an LLM guessing at Pakistani
+ * legal fees from its own (unverifiable, possibly wrong) training data.
+ *
+ * Consultation fee is a flat per-lawyer figure (LawyerProfile.consultationFee
+ * isn't tied to case type), so that average is always platform-wide.
+ * Retainer figures come from ACCEPTED proposals' feeStructure.retainerAmount
+ * — freeform caseType text, so each is bucketed into CASE_CATEGORIES via
+ * matchCategory before averaging. Categories with fewer than 2 accepted
+ * proposals fall back to the platform-wide retainer average instead of a
+ * near-meaningless single-sample "average", and say so via
+ * `retainer.isCategorySpecific`.
+ *
+ * @param {string} category - one of CASE_CATEGORIES
+ * @returns {Promise<{
+ *   category: string,
+ *   consultationFee: { avg: number|null, sampleSize: number },
+ *   retainer: { avg: number|null, min: number|null, max: number|null, sampleSize: number, isCategorySpecific: boolean },
+ * }>}
+ */
+export async function getCostEstimate(category) {
+  const [consultationFeeAgg, acceptedProposals] = await Promise.all([
+    prisma.lawyerProfile.aggregate({
+      where: { verificationStatus: "VERIFIED", consultationFee: { not: null } },
+      _avg: { consultationFee: true },
+      _count: true,
+    }),
+    prisma.proposal.findMany({
+      where: { status: "ACCEPTED" },
+      select: { feeStructure: true },
+    }),
+  ]);
+
+  const retainers = acceptedProposals
+    .map((p) => ({
+      amount: p.feeStructure?.retainerAmount,
+      category: matchCategory(p.feeStructure?.caseType),
+    }))
+    .filter((r) => typeof r.amount === "number");
+
+  function retainerStats(rows) {
+    if (rows.length === 0) return null;
+    const amounts = rows.map((r) => r.amount);
+    return {
+      avg: Math.round(amounts.reduce((sum, a) => sum + a, 0) / amounts.length),
+      min: Math.min(...amounts),
+      max: Math.max(...amounts),
+      sampleSize: amounts.length,
+    };
+  }
+
+  const categoryRows = retainers.filter((r) => r.category === category);
+  const categoryStats = categoryRows.length >= 2 ? retainerStats(categoryRows) : null;
+  const platformStats = retainerStats(retainers);
+
+  return {
+    category,
+    consultationFee: {
+      avg: consultationFeeAgg._avg.consultationFee ? Math.round(consultationFeeAgg._avg.consultationFee) : null,
+      sampleSize: consultationFeeAgg._count,
+    },
+    retainer: categoryStats
+      ? { ...categoryStats, isCategorySpecific: true }
+      : platformStats
+        ? { ...platformStats, isCategorySpecific: false }
+        : { avg: null, min: null, max: null, sampleSize: 0, isCategorySpecific: false },
+  };
 }
 
 /**

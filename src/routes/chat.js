@@ -19,9 +19,12 @@ const router = Router();
  *
  * Response:
  *   {
- *     "answer":    "string",
- *     "sources":   [{ "document": "string", "chunks": number }],
- *     "sessionId": "string"
+ *     "answer":       "string",
+ *     "category":     "string|null",
+ *     "checklist":    ["string"],
+ *     "costEstimate": { object|null } — see lawyerService.getCostEstimate,
+ *     "sources":      [{ "document": "string", "chunks": number }],
+ *     "sessionId":    "string"
  *   }
  */
 router.post('/', async (req, res) => {
@@ -41,10 +44,13 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const { answer, sources } = await chat(sessionId.trim(), message.trim());
+    const { answer, category, checklist, costEstimate, sources } = await chat(sessionId.trim(), message.trim());
 
     return res.status(200).json({
       answer,
+      category,
+      checklist,
+      costEstimate,
       sources,
       sessionId: sessionId.trim(),
     });
