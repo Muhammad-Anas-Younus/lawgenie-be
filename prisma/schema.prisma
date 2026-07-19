@@ -91,6 +91,12 @@ model LawyerProfile {
   averageRating Float?
   reviewCount   Int    @default(0)
 
+  // Recomputed on every /me update from bio/city/experienceYears/
+  // consultationFee/specialization — an unverified profile stub shouldn't be
+  // bookable even after admin verification. Gates directory visibility and
+  // consultation booking alongside verificationStatus (see lawyerService).
+  isProfileCompleted Boolean @default(false)
+
   verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
   verificationReason String?
 

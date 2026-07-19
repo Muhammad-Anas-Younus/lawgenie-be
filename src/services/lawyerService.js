@@ -10,6 +10,19 @@ function toFileUrl(file) {
   return file ? `/api/files/credentials/${file.filename}` : null;
 }
 
+// Key fields a client needs to actually evaluate/book a lawyer. Checked
+// against the *merged* (existing + incoming patch) profile on every /me
+// update so isProfileCompleted always reflects the current row.
+function computeIsProfileCompleted(profile) {
+  return Boolean(
+    profile.bio &&
+    profile.city &&
+    profile.experienceYears != null &&
+    profile.consultationFee != null &&
+    profile.specialization?.length > 0,
+  );
+}
+
 // Public-facing shape for the directory/detail views. Deliberately omits
 // email/phone — "no contact until paid" (see Phase 5.2) means direct
 // contact details shouldn't be scrapeable from an unauthenticated listing.
@@ -54,10 +67,13 @@ export async function listLawyers({
 }) {
   const where = {
     verificationStatus: "VERIFIED",
+    isProfileCompleted: true,
     ...(specialization ? { specialization: { has: specialization } } : {}),
     ...(city ? { city: { equals: city, mode: "insensitive" } } : {}),
     ...(minRating !== undefined ? { averageRating: { gte: minRating } } : {}),
-    ...(availableOn ? { availability: { path: [availableOn], equals: true } } : {}),
+    ...(availableOn
+      ? { availability: { path: [availableOn], equals: true } }
+      : {}),
     ...(minFee !== undefined || maxFee !== undefined
       ? {
           consultationFee: {
@@ -107,7 +123,8 @@ export async function listLawyers({
 
 /**
  * GET /api/lawyers/:id — public detail. 404s (rather than 403) for a
- * not-yet-verified profile so unverified accounts aren't enumerable.
+ * not-yet-verified or not-yet-complete profile so those accounts aren't
+ * enumerable.
  */
 export async function getLawyerById(userId) {
   const profile = await prisma.lawyerProfile.findUnique({
@@ -115,7 +132,11 @@ export async function getLawyerById(userId) {
     include: LAWYER_PROFILE_INCLUDE,
   });
 
-  if (!profile || profile.verificationStatus !== "VERIFIED") {
+  if (
+    !profile ||
+    profile.verificationStatus !== "VERIFIED" ||
+    !profile.isProfileCompleted
+  ) {
     throw new AppError(404, "Lawyer not found.");
   }
 
@@ -138,6 +159,7 @@ export async function getOwnProfile(userId) {
 
   return {
     ...toPublicLawyer(profile),
+    isProfileCompleted: profile.isProfileCompleted,
     verificationStatus: profile.verificationStatus,
     verificationReason: profile.verificationReason,
   };
@@ -155,12 +177,16 @@ export async function updateOwnProfile(userId, data) {
 
   const profile = await prisma.lawyerProfile.update({
     where: { userId },
-    data,
+    data: {
+      ...data,
+      isProfileCompleted: computeIsProfileCompleted({ ...existing, ...data }),
+    },
     include: LAWYER_PROFILE_INCLUDE,
   });
 
   return {
     ...toPublicLawyer(profile),
+    isProfileCompleted: profile.isProfileCompleted,
     verificationStatus: profile.verificationStatus,
     verificationReason: profile.verificationReason,
   };
@@ -178,31 +204,38 @@ export async function updateOwnProfile(userId, data) {
  * just admin-reviewed proof-of-payment screenshots).
  */
 export async function getOwnEarnings(lawyerId) {
-  const [consultationPayments, casePayments, milestonePayments] = await Promise.all([
-    prisma.payment.findMany({
-      where: { status: "APPROVED", consultation: { lawyerId } },
-      include: {
-        consultation: { include: { client: { select: { id: true, name: true } } } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.payment.findMany({
-      where: { status: "APPROVED", case: { lawyerId } },
-      include: {
-        case: { include: { client: { select: { id: true, name: true } } } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.payment.findMany({
-      where: { status: "APPROVED", milestone: { case: { lawyerId } } },
-      include: {
-        milestone: {
-          include: { case: { include: { client: { select: { id: true, name: true } } } } },
+  const [consultationPayments, casePayments, milestonePayments] =
+    await Promise.all([
+      prisma.payment.findMany({
+        where: { status: "APPROVED", consultation: { lawyerId } },
+        include: {
+          consultation: {
+            include: { client: { select: { id: true, name: true } } },
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.payment.findMany({
+        where: { status: "APPROVED", case: { lawyerId } },
+        include: {
+          case: { include: { client: { select: { id: true, name: true } } } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.payment.findMany({
+        where: { status: "APPROVED", milestone: { case: { lawyerId } } },
+        include: {
+          milestone: {
+            include: {
+              case: {
+                include: { client: { select: { id: true, name: true } } },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
   const sum = (payments) => payments.reduce((total, p) => total + p.amount, 0);
 
@@ -264,7 +297,7 @@ export async function getOwnEarnings(lawyerId) {
  */
 export async function getRecommendations({ caseType, budget, location }) {
   const candidates = await prisma.lawyerProfile.findMany({
-    where: { verificationStatus: "VERIFIED" },
+    where: { verificationStatus: "VERIFIED", isProfileCompleted: true },
     include: LAWYER_PROFILE_INCLUDE,
     take: 50,
   });
@@ -290,16 +323,27 @@ export async function getRecommendations({ caseType, budget, location }) {
     const ranked = candidates
       .filter(
         (c) =>
-          c.specialization.some((s) => s.toLowerCase().includes(caseTypeLower) || caseTypeLower.includes(s.toLowerCase())) ||
-          (location && c.city && c.city.toLowerCase() === location.toLowerCase())
+          c.specialization.some(
+            (s) =>
+              s.toLowerCase().includes(caseTypeLower) ||
+              caseTypeLower.includes(s.toLowerCase()),
+          ) ||
+          (location &&
+            c.city &&
+            c.city.toLowerCase() === location.toLowerCase()),
       )
-      .sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0) || (b.experienceYears ?? 0) - (a.experienceYears ?? 0));
+      .sort(
+        (a, b) =>
+          (b.averageRating ?? 0) - (a.averageRating ?? 0) ||
+          (b.experienceYears ?? 0) - (a.experienceYears ?? 0),
+      );
 
     const pool = ranked.length > 0 ? ranked : candidates;
     return {
       recommendations: pool.slice(0, 5).map((c) => ({
         ...toPublicLawyer(c),
-        matchReason: "Matched by specialization/location (AI ranking unavailable).",
+        matchReason:
+          "Matched by specialization/location (AI ranking unavailable).",
       })),
     };
   }
@@ -320,7 +364,12 @@ Respond with ONLY a JSON array, no markdown, no explanation, in this exact shape
 [{"id": "<lawyer id>", "reason": "<one short sentence>"}]`;
 
     const result = await model.generateContent(prompt);
-    const text = result.response.text().trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+    const text = result.response
+      .text()
+      .trim()
+      .replace(/^```(json)?/i, "")
+      .replace(/```$/, "")
+      .trim();
     const parsed = JSON.parse(text);
 
     if (!Array.isArray(parsed)) {
@@ -360,13 +409,20 @@ export async function registerLawyer(
     languages,
     jurisdictions,
   },
-  files
+  files,
 ) {
   const existing = await prisma.user.findFirst({
-    where: { OR: [email ? { email } : undefined, phone ? { phone } : undefined].filter(Boolean) },
+    where: {
+      OR: [email ? { email } : undefined, phone ? { phone } : undefined].filter(
+        Boolean,
+      ),
+    },
   });
   if (existing) {
-    throw new AppError(409, "An account with this email or phone already exists.");
+    throw new AppError(
+      409,
+      "An account with this email or phone already exists.",
+    );
   }
 
   const barCouncilLicense = files?.barCouncilLicense?.[0];
@@ -384,19 +440,24 @@ export async function registerLawyer(
       data: { name, email, phone, passwordHash, role: "LAWYER" },
     });
 
+    const profileFields = {
+      specialization: specialization ?? [],
+      experienceYears: experienceYears ?? null,
+      bio: bio ?? null,
+      city: city ?? null,
+      consultationFee: consultationFee ?? null,
+      languages: languages ?? [],
+      jurisdictions: jurisdictions ?? [],
+    };
+
     await tx.lawyerProfile.create({
       data: {
         userId: created.id,
         barCouncilLicenseUrl: toFileUrl(barCouncilLicense),
         cnicUrl: toFileUrl(cnic),
         educationCredentialsUrl: toFileUrl(educationCredentials),
-        specialization: specialization ?? [],
-        experienceYears: experienceYears ?? null,
-        bio: bio ?? null,
-        city: city ?? null,
-        consultationFee: consultationFee ?? null,
-        languages: languages ?? [],
-        jurisdictions: jurisdictions ?? [],
+        ...profileFields,
+        isProfileCompleted: computeIsProfileCompleted(profileFields),
       },
     });
 
@@ -407,7 +468,8 @@ export async function registerLawyer(
   const otp = generateOtp(identifier);
 
   return {
-    message: "Registration submitted. Verify your OTP, then await admin credential review.",
+    message:
+      "Registration submitted. Verify your OTP, then await admin credential review.",
     userId: user.id,
     identifier,
     otp: process.env.NODE_ENV === "production" ? undefined : otp,

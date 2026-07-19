@@ -36,11 +36,8 @@ export async function createConsultation(clientId, { lawyerId, scheduledAt }) {
   }
 
   const lawyerProfile = await prisma.lawyerProfile.findUnique({ where: { userId: lawyerId } });
-  if (!lawyerProfile || lawyerProfile.verificationStatus !== "VERIFIED") {
+  if (!lawyerProfile || lawyerProfile.verificationStatus !== "VERIFIED" || !lawyerProfile.isProfileCompleted) {
     throw new AppError(404, "Lawyer not found.");
-  }
-  if (lawyerProfile.consultationFee == null) {
-    throw new AppError(400, "This lawyer hasn't set a consultation fee yet.");
   }
 
   const consultation = await prisma.consultation.create({
