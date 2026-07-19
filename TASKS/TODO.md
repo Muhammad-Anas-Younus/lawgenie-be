@@ -375,9 +375,21 @@ Aggregates across everything above — genuinely needs it all done first.
 - [x] **11.4** Backend: Analytics endpoints — registrations by role, case
       volume by status, payment volume/approval stats, lawyer/Mufti
       performance, satisfaction/NPS (`GET /api/admin/analytics/*`).
-- [ ] **11.6** Frontend: Replace the dummy `STATS`/`GROWTH_DATA`/
+- [x] **11.6** Frontend: Replace the dummy `STATS`/`GROWTH_DATA`/
       `RECENT_USERS` arrays in `admin/AdminDashboardPage.jsx` with 11.4 plus
       a real, searchable user list.
+- [x] **12.6** Frontend: `client/ClientDashboard.jsx` and
+      `lawyer/LawyerDashboard.jsx` (the role landing pages) were never
+      captured as their own tasks and were still fully dummy data — found
+      during the Wave 5 review. Wired both to existing endpoints
+      (`/api/cases/mine`, `/api/cases/:id`, `/api/consultations/mine`,
+      `/api/hearings/mine`, `/api/documents`, `/api/lawyers/me/earnings`);
+      dropped the fake "Notifications"/"Client Messages" panels (no
+      backing `Notification` model or cross-thread inbox endpoint exists)
+      and the stale "Tier 2" client-tier text. Also fixed dead links found
+      along the way (`/lawyer/clients` → `/lawyer/cases`, `/client/cases` →
+      `/client/my-case`, a lawyer-dashboard tile that linked into the
+      Mufti-only `/mufti/dashboard`).
 
 ---
 
