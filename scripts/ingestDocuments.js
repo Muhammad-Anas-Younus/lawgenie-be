@@ -13,7 +13,7 @@
  *
  * Prerequisites:
  *  - ChromaDB must be running: docker run -p 8000:8000 chromadb/chroma
- *  - .env must contain GEMINI_API_KEY and CHROMA_URL
+ *  - .env must contain OPENROUTER_API_KEY and CHROMA_URL
  *
  * IMPORTANT — RPD (Requests Per Day) limit is 1,000 on the free tier.
  *  Hedaya.pdf alone produces ~3,267 chunks, which exceeds the daily limit.

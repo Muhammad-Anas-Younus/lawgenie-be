@@ -44,14 +44,15 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const { answer, category, checklist, costEstimate, sources } = await chat(sessionId.trim(), message.trim());
+    const result = await chat(sessionId.trim(), message.trim());
 
     return res.status(200).json({
-      answer,
-      category,
-      checklist,
-      costEstimate,
-      sources,
+      answer: result.answer,
+      category: result.category,
+      checklist: result.checklist,
+      costEstimate: result.costEstimate,
+      sources: result.sources,
+      lawyers: result.lawyers,
       sessionId: sessionId.trim(),
     });
   } catch (err) {

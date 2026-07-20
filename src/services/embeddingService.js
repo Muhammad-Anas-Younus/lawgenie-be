@@ -1,7 +1,7 @@
-import { getEmbeddingModel } from '../config/gemini.js';
+import { getEmbeddingModel, EMBEDDING_MODEL } from '../config/gemini.js';
 
 // ---------------------------------------------------------------------------
-// Rate limit constants — based on Gemini free tier:
+// Rate limit constants — based on Gemini free tier via OpenRouter:
 //   RPM: 100  →  minimum 600ms between calls gives ~100 RPM safely
 //   TPM: 30K  →  each chunk ~200-800 tokens, well within limit per call
 //   RPD: 1K   →  3444 chunks exceeds this; ingestion uses resume to spread
@@ -13,15 +13,20 @@ const RETRY_BASE_DELAY_MS = 60_000; // 60s initial wait on 429, then 120s, 240s
 
 /**
  * Generates an embedding vector for a single piece of text using
- * Gemini gemini-embedding-001 (3072 dimensions).
+ * OpenRouter (gemini-embedding-001 via OpenAI-compatible API, 3072 dimensions).
  *
  * @param {string} text - The text to embed.
  * @returns {Promise<number[]>}
  */
 export async function embedText(text) {
-  const model = getEmbeddingModel();
-  const result = await model.embedContent(text);
-  return result.embedding.values;
+  const openrouter = getEmbeddingModel();
+  const result = await openrouter.embeddings.generate({
+    requestBody: {
+      model: EMBEDDING_MODEL,
+      input: text,
+    },
+  });
+  return result.data[0].embedding;
 }
 
 /**

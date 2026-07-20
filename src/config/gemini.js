@@ -1,24 +1,23 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { OpenRouter } from "@openrouter/sdk";
 import "dotenv/config";
 
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY is not set in environment variables.");
+if (!process.env.OPENROUTER_API_KEY) {
+  throw new Error("OPENROUTER_API_KEY is not set in environment variables.");
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const openrouter = new OpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  httpReferer: "https://lawgenie.app",
+  appTitle: "LawGenie",
+});
 
-/**
- * Returns a Gemini generative model instance for chat/completion.
- * Using gemini-1.5-flash — 15 RPM on free tier, fast and cost-effective.
- */
+export const CHAT_MODEL = "google/gemini-2.5-flash";
+export const EMBEDDING_MODEL = "google/gemini-embedding-001";
+
 export function getLLM() {
-  return genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  return openrouter;
 }
 
-/**
- * Returns a Gemini model instance for generating text embeddings.
- * gemini-embedding-001 is the current stable embedding model.
- */
 export function getEmbeddingModel() {
-  return genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+  return openrouter;
 }

@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma.js";
 import { generateOtp } from "./otpService.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { getLLM } from "../config/gemini.js";
+import { getLLM, CHAT_MODEL } from "../config/gemini.js";
 import { matchCategory } from "./caseCategories.js";
 
 const SALT_ROUNDS = 10;
@@ -320,7 +320,7 @@ export async function getRecommendations({ caseType, budget, location }) {
   }));
 
   function fallback() {
-    const caseTypeLower = caseType.toLowerCase();
+    const caseTypeLower = (caseType ?? "").toLowerCase();
     const ranked = candidates
       .filter(
         (c) =>
@@ -350,10 +350,10 @@ export async function getRecommendations({ caseType, budget, location }) {
   }
 
   try {
-    const model = getLLM();
+    const openrouter = getLLM();
     const prompt = `You are matching a client to lawyers on LawGenie, a Pakistani family law platform.
 
-Client's case type: "${caseType}"
+Client's case type: "${caseType ?? ""}"
 ${budget !== undefined ? `Client's budget (PKR, consultation fee): ${budget}` : ""}
 ${location ? `Client's preferred location: "${location}"` : ""}
 
@@ -364,9 +364,13 @@ Pick up to 5 of the best-matching lawyers for this case, ranked best first, cons
 Respond with ONLY a JSON array, no markdown, no explanation, in this exact shape:
 [{"id": "<lawyer id>", "reason": "<one short sentence>"}]`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response
-      .text()
+    const completion = await openrouter.chat.send({
+      chatRequest: {
+        model: CHAT_MODEL,
+        messages: [{ role: "user", content: prompt }],
+      },
+    });
+    const text = (completion.choices[0].message.content ?? "")
       .trim()
       .replace(/^```(json)?/i, "")
       .replace(/```$/, "")

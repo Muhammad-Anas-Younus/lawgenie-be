@@ -1,11 +1,10 @@
-import { SchemaType } from "@google/generative-ai";
-import { getLLM } from "../config/gemini.js";
+import { getLLM, CHAT_MODEL } from "../config/gemini.js";
 import { embedText } from "./embeddingService.js";
 import { queryCollection } from "./vectorStore.js";
 import { getHistory, appendMessage } from "../middleware/session.js";
 import { checkIntent } from "./intentFilter.js";
 import { CASE_CATEGORIES } from "./caseCategories.js";
-import { getCostEstimate } from "./lawyerService.js";
+import { getCostEstimate, getRecommendations } from "./lawyerService.js";
 
 // Number of chunks to retrieve from ChromaDB per query
 const N_RESULTS = 5;
@@ -15,26 +14,28 @@ const N_RESULTS = 5;
 // see the write-up on why this needs to be structured output, not just a
 // prompt instruction to "always mention the category."
 const RESPONSE_SCHEMA = {
-  type: SchemaType.OBJECT,
+  type: "object",
   properties: {
     answer: {
-      type: SchemaType.STRING,
-      description: "The full answer to the user, written per the system prompt's tone/structure/citation rules.",
+      type: "string",
+      description:
+        "The full answer to the user, written per the system prompt's tone/structure/citation rules.",
     },
     category: {
-      type: SchemaType.STRING,
-      format: "enum",
+      type: "string",
       enum: CASE_CATEGORIES,
-      description: "The single best-matching case category for the user's situation.",
+      description:
+        "The single best-matching case category for the user's situation.",
     },
     checklist: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
+      type: "array",
+      items: { type: "string" },
       description:
         "Documents the user would need to move forward with this case type (e.g. Nikah Nama, CNIC). Empty array if the conversation hasn't reached a point where a checklist is useful yet (e.g. small talk, a purely informational question).",
     },
   },
   required: ["answer", "category", "checklist"],
+  additionalProperties: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,10 @@ const RESPONSE_SCHEMA = {
 
 function buildSystemPrompt() {
   return `You are LawGenie, a compassionate AI legal assistant specialising in Pakistani family law and Islamic jurisprudence. Your sole purpose is to help women in Pakistan understand their legal rights in matters of marriage, divorce, Khula, custody, maintenance, Mehr, and property.
+
+IMPORTANT — TWO OPERATING MODES:
+MODE 1 — Legal Q&A: When the user asks a legal question, answer using the context below. Cite sources with [Document Name]. Include category, checklist, etc.
+MODE 2 — Lawyer Recommendations: When the user asks you to recommend, find, suggest, or connect them with a lawyer, switch to MODE 2. In MODE 2 you MUST immediately set "category" to "Lawyer Recommendation" and include "recommendationCriteria" with what the user has told you. Do NOT provide legal answers, citations, or ask follow-up questions.
 
 TONE & STYLE:
 - Always begin by briefly acknowledging the user's emotional situation before answering legally. One sentence is enough.
@@ -57,6 +62,11 @@ ANSWERING RULES:
 4. For complex or highly specific personal cases, recommend consulting a verified lawyer on LawGenie after giving your answer — not instead of it.
 5. Never fabricate laws, sections, or case references that are not in the provided context.
 
+CRITICAL — LAWYER RECOMMENDATIONS:
+When the user asks you to recommend, find, suggest, or connect them with a lawyer, you MUST immediately set "category" to "Lawyer Recommendation" and include "recommendationCriteria" with whatever information is available. Do NOT ask for confirmation, location, or budget. Do NOT engage in a back-and-forth. The system will handle matching. Just extract "caseType" from their message and set the fields. If they already told you their city or budget, include those too. If not, omit them — the system works fine with just a case type.
+
+CITATION FORMAT:
+
 CITATION FORMAT:
 - Cite sources inline immediately after each legal claim using [Document Name] notation.
 - Example: "The husband must send written notice to the Union Council Chairman within 7 days of pronouncing Talaq [MFLO 1961]."
@@ -70,10 +80,22 @@ RESPONSE STRUCTURE (for the "answer" field):
 - End with an offer to help further or recommend a lawyer if the case is complex.
 
 OUTPUT FORMAT:
-You must respond with a JSON object matching the given schema — never plain text.
+You must respond with a JSON object — never plain text.
+
+When the user is asking about legal information:
 - "answer": the full response, following the rules above.
-- "category": classify the user's situation into exactly one of: ${CASE_CATEGORIES.join(", ")}. Pick "Family Law" only if nothing more specific applies. Do this on every turn, even casual ones — infer from context/history if the current message alone is ambiguous.
-- "checklist": if the user's situation is concrete enough that specific documents would be needed to act on it (e.g. filing for Khula, registering a Nikah, claiming Mehr), list those documents here — even if the user didn't ask for a checklist. Otherwise return an empty array. Do not repeat the checklist inside "answer" — it renders separately in the UI.`;
+- "category": one of: ${CASE_CATEGORIES.join(", ")}. Pick "Family Law" only if nothing more specific applies.
+- "checklist": documents needed (string[]). Empty array if not applicable.
+
+When the user is asking for a LAWYER RECOMMENDATION:
+- "category": "Lawyer Recommendation" (MUST be exactly this)
+- "answer": a brief message like "I'll find matching lawyers for you."
+- "recommendationCriteria": { "caseType": "child custody", "budget": 50000, "location": "Karachi" }
+  - "caseType": REQUIRED — extract from their message
+  - "budget": include only if mentioned (number, optional)
+  - "location": include only if mentioned (string, optional)
+
+CRITICAL: Do NOT ask the user any follow-up questions about lawyers. If they ask for a lawyer, immediately output the Lawyer Recommendation format with whatever details they've already provided. The system will handle the rest.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,13 +174,16 @@ function extractSources(chunks) {
  * }>}
  */
 export async function chat(sessionId, userMessage) {
-  // 0. Intent filter — short-circuit before touching ChromaDB
-  const { inScope, outOfScopeResponse } = await checkIntent(userMessage);
+  // 0. Fetch history early so the intent filter has context
+  const history = getHistory(sessionId);
+
+  // 1. Intent filter — short-circuit before touching ChromaDB
+  const { inScope, outOfScopeResponse } = await checkIntent(userMessage, history);
 
   if (!inScope) {
     // Still store the turn in memory so follow-up context is preserved
-    appendMessage(sessionId, 'user', userMessage);
-    appendMessage(sessionId, 'model', outOfScopeResponse);
+    appendMessage(sessionId, "user", userMessage);
+    appendMessage(sessionId, "model", outOfScopeResponse);
 
     return {
       answer: outOfScopeResponse,
@@ -169,9 +194,6 @@ export async function chat(sessionId, userMessage) {
       inScope: false,
     };
   }
-
-  // 1. Session history
-  const history = getHistory(sessionId);
 
   // 2. Embed the user's message
   const queryEmbedding = await embedText(userMessage);
@@ -189,58 +211,73 @@ export async function chat(sessionId, userMessage) {
   // The system prompt + context are prepended as the first "user" turn
   // so they anchor the entire conversation, followed by the actual history
   // and the new user message.
-  const model = getLLM();
+  const openrouter = getLLM();
 
-  const fullPromptParts = [
+  const messages = [
     {
-      role: "user",
-      parts: [
-        {
-          text: `${systemPrompt}\n\n---\nRELEVANT CONTEXT FROM KNOWLEDGE BASE:\n\n${contextBlock}\n\n---\nUsing only the context above, answer the user's question.`,
-        },
-      ],
+      role: "system",
+      content: `${systemPrompt}\n\n---\nRELEVANT CONTEXT FROM KNOWLEDGE BASE:\n\n${contextBlock}\n\n---\nAnswer the user's question. If the user wants a lawyer recommendation, ignore the context above and follow the LAWYER RECOMMENDATIONS rule instead.`,
     },
     {
-      role: "model",
-      parts: [
-        {
-          text: "Understood. I will answer based solely on the provided context, cite sources inline using [Document Name] notation, and return the JSON object described (answer/category/checklist).",
-        },
-      ],
+      role: "assistant",
+      content:
+        "Understood. I will answer based on the provided context for legal questions, cite sources inline using [Document Name] notation, and return the JSON object with the correct fields. If the user asks for a lawyer recommendation, I will set category to 'Lawyer Recommendation' and include recommendationCriteria so the system can match them to real lawyers.",
     },
     // Inject conversation history (last 6 messages = 3 turns)
     ...history.map((msg) => ({
-      role: msg.role,
-      parts: [{ text: msg.content }],
+      role: msg.role === "model" ? "assistant" : "user",
+      content: msg.content,
     })),
     // Current user message
     {
       role: "user",
-      parts: [{ text: userMessage }],
+      content: userMessage,
     },
   ];
 
-  const result = await model.generateContent({
-    contents: fullPromptParts,
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
+  const completion = await openrouter.chat.send({
+    chatRequest: {
+      model: CHAT_MODEL,
+      messages,
+      responseFormat: { type: "json_object" },
     },
   });
 
-  // Structured output is schema-constrained by the API, but parse
+  const responseText = completion.choices[0].message.content ?? "";
+
+  // Structured output is enforced by responseFormat, but parse
   // defensively anyway — if it ever fails, degrade to plain text rather
   // than 500ing the whole chat turn.
   let answer;
   let category = null;
   let checklist = [];
+  let lawyers = null;
   try {
-    const parsed = JSON.parse(result.response.text());
+    const parsed = JSON.parse(responseText);
     answer = parsed.answer;
-    category = CASE_CATEGORIES.includes(parsed.category) ? parsed.category : null;
+    category =
+      parsed.category === "Lawyer Recommendation" ||
+      CASE_CATEGORIES.includes(parsed.category)
+        ? parsed.category
+        : null;
     checklist = Array.isArray(parsed.checklist) ? parsed.checklist : [];
+
+    if (
+      parsed.category === "Lawyer Recommendation" &&
+      parsed.recommendationCriteria
+    ) {
+      const { caseType, budget, location } = parsed.recommendationCriteria;
+      const result = await getRecommendations({ caseType, budget, location });
+      if (result.recommendations && result.recommendations.length > 0) {
+        lawyers = result.recommendations;
+      } else {
+        lawyers = null;
+        answer =
+          "I'm sorry, but there are currently no verified lawyers on LawGenie matching your criteria. Please check back later or try adjusting your search criteria.";
+      }
+    }
   } catch {
-    answer = result.response.text();
+    answer = responseText;
   }
 
   // 6. Update session memory with this turn (answer text only, so future
@@ -251,10 +288,21 @@ export async function chat(sessionId, userMessage) {
   // 7. A real, DB-derived cost estimate for the assigned category — kept
   // entirely separate from the LLM's own output so no dollar figure the
   // user sees was ever generated (and possibly hallucinated) by the model.
-  const costEstimate = category ? await getCostEstimate(category) : null;
+  const costEstimate =
+    category && category !== "Lawyer Recommendation"
+      ? await getCostEstimate(category)
+      : null;
 
   // 8. Extract unique source documents used
   const sources = extractSources(retrievedChunks);
 
-  return { answer, category, checklist, costEstimate, sources, inScope: true };
+  return {
+    answer,
+    category,
+    checklist,
+    costEstimate,
+    sources,
+    lawyers,
+    inScope: true,
+  };
 }
